@@ -59,7 +59,33 @@ NEW_WRITE = '''  if(onWeb()){
       .catch(function(){});
   }'''
 
-def build(src, dst):
+# The game files were written as Artifact bodies: they start at <title> with no
+# doctype, head or body, because the Artifact runtime supplies all of that. A
+# plain web server does not, and a page with no viewport meta is laid out by
+# mobile Safari at 980px and then scaled down, which is why the board came out
+# tiny on a phone. Served copies get a real document around them.
+HEAD = """<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#E9F0DC" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#141D18" media="(prefers-color-scheme: dark)">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="icon" href="{icon}">
+<link rel="apple-touch-icon" href="{icon}">
+"""
+
+
+def wrap(body, icon):
+    anchor = '<div id="app">'
+    assert body.count(anchor) == 1, 'expected exactly one ' + anchor
+    body = body.replace(anchor, '</head>\n<body>\n' + anchor, 1)
+    return HEAD.format(icon=icon) + body.rstrip() + '\n</body>\n</html>\n'
+
+
+def build(src, dst, icon):
     s = pathlib.Path(src).read_text(encoding='utf-8')
     assert OLD_START in s, 'startLeaderboard anchor missing in ' + src
     s = s.replace(OLD_START, NEW_START)
@@ -86,16 +112,19 @@ def build(src, dst):
   }
   h+='<p class="sub" style="margin:0 0 12px">'+(LIVE?"Everyone who plays shares this board.":"Offline — showing this device only.")+'</p>';""", 1)
 
+    s = wrap(s, icon)
     pathlib.Path(dst).write_text(s, encoding='utf-8')
     print(dst, len(s), 'bytes')
 
 web = pathlib.Path('web'); web.mkdir(exist_ok=True)
 (web / 'art').mkdir(exist_ok=True)
-build('trixdoku.html', 'web/trixdoku.html')
-build('cocodoku.html', 'web/cocodoku.html')
+build('trixdoku.html', 'web/trixdoku.html', 'art/trix-piece.png')
+build('cocodoku.html', 'web/cocodoku.html', 'art/coco-piece.png')
 shutil.copy('art/trix-web.png', 'web/art/trix-piece.png')
 shutil.copy('art/coco-web.png', 'web/art/coco-piece.png')
-shutil.copy('cowdoku.html', 'web/cowdoku.html')
+pathlib.Path('web/cowdoku.html').write_text(
+    wrap(pathlib.Path('cowdoku.html').read_text(encoding='utf-8'), 'tiles/grass-1.png'),
+    encoding='utf-8')
 shutil.copytree('tiles', 'web/tiles', dirs_exist_ok=True)
 # Jason wants Cocodoku to be the game people land on, so it is the index.
 # The three-game page (landing.html) stays reachable at /games.
