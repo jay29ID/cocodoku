@@ -1,0 +1,853 @@
+<title>Trixdoku</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chewy&family=Nunito:wght@600;700;900&display=swap">
+<style>
+:root{
+  --bg:#E9F0DC; --surface:#FBF7EC; --surface2:#EFE7D2;
+  --ink:#27331F; --muted:#6E7B60;
+  --grass:#7FA84F; --grass-deep:#4E7238;
+  --barn:#C24A38; --gold:#D9A22E;
+  --edge:rgba(39,51,31,.16); --rule:rgba(20,14,8,.26); --wall:#4B3722;
+  --drop:rgba(39,51,31,.18); --scrim:rgba(28,38,22,.55); --veil:rgba(26,34,20,.42);
+  --c1:#F08A84; --c2:#F3A65C; --c3:#EFCB54; --c4:#C3D964; --c5:#86C767;
+  --c6:#58C2A6; --c7:#5CB6DE; --c8:#7A93E2; --c9:#A585DC; --c10:#DB80C4;
+  --c11:#C99A82; --c12:#A3AEBA;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#141D18; --surface:#1E2922; --surface2:#26332B;
+    --ink:#E9F0DE; --muted:#93A388;
+    --grass:#8CB95A; --grass-deep:#A7D072;
+    --barn:#E0654F; --gold:#F0C560;
+    --edge:rgba(233,240,222,.16); --rule:rgba(0,0,0,.34); --wall:#1C120A;
+    --drop:rgba(0,0,0,.45); --scrim:rgba(8,14,10,.7); --veil:rgba(0,0,0,.55);
+    --c1:#9E4A45; --c2:#A2683A; --c3:#9E8630; --c4:#7F8E3C; --c5:#53813D;
+    --c6:#327B67; --c7:#35718C; --c8:#4B5C91; --c9:#69538D; --c10:#8C4F7D;
+    --c11:#816152; --c12:#676F79;
+  }
+    :root:not([data-theme="light"]) .cell.img .tex{filter:brightness(.78) saturate(.92)}
+
+}
+:root[data-theme="dark"]{
+  --bg:#141D18; --surface:#1E2922; --surface2:#26332B;
+  --ink:#E9F0DE; --muted:#93A388;
+  --grass:#8CB95A; --grass-deep:#A7D072;
+  --barn:#E0654F; --gold:#F0C560;
+  --edge:rgba(233,240,222,.16); --rule:rgba(0,0,0,.34); --wall:#1C120A;
+  --drop:rgba(0,0,0,.45); --scrim:rgba(8,14,10,.7); --veil:rgba(0,0,0,.55);
+  --c1:#9E4A45; --c2:#A2683A; --c3:#9E8630; --c4:#7F8E3C; --c5:#53813D;
+  --c6:#327B67; --c7:#35718C; --c8:#4B5C91; --c9:#69538D; --c10:#8C4F7D;
+  --c11:#816152; --c12:#676F79;
+}
+:root[data-theme="dark"] .cell.img .tex{filter:brightness(.78) saturate(.92)}
+html{height:100%;box-sizing:border-box}
+*,*::before,*::after{box-sizing:inherit}
+body{
+  height:100%;margin:0;background:var(--bg);color:var(--ink);
+  font-family:Nunito,"Segoe UI",system-ui,-apple-system,sans-serif;font-weight:700;
+  overflow:hidden;overscroll-behavior:none;
+  -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent;
+}
+#app{position:relative;height:100%;display:flex;flex-direction:column;gap:8px;padding:0 16px 10px}
+
+header{display:flex;align-items:center;gap:9px;padding-top:10px;flex:0 0 auto}
+.brand{display:flex;align-items:center;gap:8px;min-width:0}
+.logo{width:32px;height:32px;flex:0 0 auto;filter:drop-shadow(0 2px 0 var(--drop))}
+.logo svg{width:100%;height:100%;display:block}
+h1{font-family:Chewy,Nunito,cursive;font-weight:400;font-size:25px;margin:0;line-height:1;letter-spacing:.4px;white-space:nowrap}
+.chips{display:flex;gap:7px;margin-left:auto}
+.chip{background:var(--surface);border:2px solid var(--edge);border-radius:12px;padding:3px 9px;text-align:center;min-width:58px}
+.chip span{display:block;font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.chip b{display:block;font-size:16px;line-height:1.15;font-variant-numeric:tabular-nums}
+.hearts{display:flex;gap:3px;justify-content:center;padding:4px 0 2px}
+.hearts svg{width:13px;height:13px;display:block}
+
+.stage{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;justify-content:center;gap:10px}
+.boardwrap{flex:0 0 auto;display:grid;place-items:center}
+.board{
+  display:grid;background:var(--wall);border:3px solid var(--wall);border-radius:14px;
+  overflow:hidden;box-shadow:0 6px 0 var(--drop);touch-action:none;position:relative
+}
+.board:focus-visible{outline:3px solid var(--gold);outline-offset:3px}
+.cell{position:relative;border:0 solid var(--wall);background:var(--cc)}
+.cell .tex{position:absolute;inset:0;pointer-events:none;background-color:var(--cc);background-image:var(--tex);background-size:100% 100%;background-repeat:no-repeat;transition:opacity .13s ease,filter .13s ease}
+.cell.img .tex{background-repeat:repeat;background-size:calc(var(--pitch,40px)*var(--span,2)) calc(var(--pitch,40px)*var(--span,2));background-position:calc(var(--c,0)*var(--pitch,40px)*-1) calc(var(--r,0)*var(--pitch,40px)*-1)}
+.cell .thin{position:absolute;inset:0;pointer-events:none;box-shadow:inset 1px 1px 0 var(--rule)}
+.cell.t0 .thin{box-shadow:inset 1px 0 0 var(--rule)}
+.cell.l0 .thin{box-shadow:inset 0 1px 0 var(--rule)}
+.cell.t0.l0 .thin{box-shadow:none}
+.cell svg{position:absolute;inset:8%;width:84%;height:84%;display:block}
+.cell .veil{position:absolute;inset:0;background:var(--veil);opacity:0;transition:opacity .12s}
+.cell.bad::after{content:"";position:absolute;inset:0;box-shadow:inset 0 0 0 3px var(--barn);border-radius:2px}
+.cell.cur::after{content:"";position:absolute;inset:0;box-shadow:inset 0 0 0 3px var(--gold);border-radius:2px}
+@keyframes wobble{0%,100%{transform:rotate(0)}25%{transform:rotate(-7deg)}75%{transform:rotate(7deg)}}
+.cell.shake svg{animation:wobble .28s ease-in-out 2}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
+.cell.tip::after{content:"";position:absolute;inset:0;box-shadow:inset 0 0 0 3px var(--gold);animation:pulse .5s ease-in-out 4}
+
+.controls{flex:0 0 auto;display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:center}
+.seg{display:flex;background:var(--surface2);border:2px solid var(--edge);border-radius:13px;padding:2px;gap:2px}
+.seg button{
+  font-family:inherit;font-weight:900;font-size:13px;border:0;background:none;color:var(--muted);
+  padding:7px 11px;border-radius:10px;cursor:pointer;font-variant-numeric:tabular-nums
+}
+.seg button.on{background:var(--grass);color:#16210F}
+.btns{display:flex;gap:7px}
+.btn{
+  font-family:inherit;font-weight:900;font-size:13px;border-radius:13px;padding:9px 13px;cursor:pointer;
+  border:2px solid var(--edge);background:var(--surface);color:var(--ink)
+}
+.btn[disabled]{opacity:.42;cursor:default}
+.btn.primary{background:var(--grass);border-color:var(--grass-deep);color:#16210F}
+.btn:not([disabled]):active{transform:translateY(1px)}
+:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+
+.footline{flex:0 0 auto;margin:0;text-align:center;font-size:11.5px;font-weight:600;color:var(--muted);line-height:1.4}
+.footline b{color:var(--ink)}
+
+.toast{
+  position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:50;
+  background:var(--surface);border:2px solid var(--edge);border-radius:14px;padding:9px 14px;
+  font-size:13px;box-shadow:0 6px 0 var(--drop);pointer-events:none;max-width:82%;text-align:center
+}
+@keyframes fade{0%{opacity:0;transform:translate(-50%,-40%)}12%{opacity:1;transform:translate(-50%,-50%)}80%{opacity:1}100%{opacity:0}}
+.toast.show{animation:fade 2s ease-out forwards}
+
+[hidden]{display:none!important}
+.overlay{position:absolute;inset:0;z-index:70;display:grid;place-items:center;background:var(--scrim);padding:20px}
+.card{background:var(--surface);border:3px solid var(--edge);border-radius:22px;padding:22px 20px;max-width:340px;width:100%;text-align:center;box-shadow:0 10px 0 var(--drop)}
+.card h2{font-family:Chewy,cursive;font-weight:400;font-size:27px;margin:0 0 8px}
+.card p{margin:0 0 14px;font-size:13.5px;font-weight:600;color:var(--muted);line-height:1.55}
+.bigtime{font-family:Chewy,cursive;font-size:48px;line-height:1;color:var(--barn);font-variant-numeric:tabular-nums}
+.sub{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:14px}
+.acts{display:flex;gap:9px;justify-content:center;flex-wrap:wrap}
+.rules{text-align:left;font-size:13px;font-weight:600;color:var(--ink);margin:0 0 14px;padding-left:18px;line-height:1.6}
+.rules li{margin-bottom:5px}
+@media (max-width:379px){
+  h1{font-size:20px}
+  .logo{width:28px;height:28px}
+  .chip{min-width:46px;padding:3px 6px}
+  .chip b{font-size:14px}
+  header{gap:6px}
+}
+@media (prefers-reduced-motion: reduce){
+  .cell.shake svg,.cell.tip::after{animation:none}
+  .toast.show{animation-duration:1.2s}
+}
+</style>
+
+<div id="app">
+  <header>
+    <div class="brand"><span class="logo" id="logo"></span><h1>Trixdoku</h1></div>
+    <div class="chips">
+      <div class="chip"><span>Lives</span><div class="hearts" id="hearts"></div></div>
+      <div class="chip"><span>Time</span><b id="time">0:00</b></div>
+      <div class="chip"><span>Best</span><b id="best">—</b></div>
+    </div>
+  </header>
+
+  <main class="stage">
+  <div class="boardwrap"><div class="board" id="board" tabindex="0" role="application" aria-label="Trixdoku puzzle"></div></div>
+
+  <div class="controls">
+    <div class="seg" id="sizes" role="group" aria-label="Board size"></div>
+    <div class="btns">
+      <button class="btn" id="undo" disabled>Undo</button>
+      <button class="btn" id="hint">Hint</button>
+      <button class="btn primary" id="newBtn">New</button>
+    </div>
+  </div>
+  <p class="footline" id="foot">Tap to rule a square out, hold or double-tap to place <b>Trix</b>. Drag to mark a run.</p>
+  </main>
+
+  <div class="toast" id="toast" hidden></div>
+  <div class="overlay" id="overlay" hidden><div class="card" id="card"></div></div>
+</div>
+
+<script>
+(function(){
+"use strict";
+var $=function(s){return document.querySelector(s)};
+var D=[[-1,0],[1,0],[0,-1],[0,1]];
+
+/* ---------------- art ---------------- */
+function cowSVG(){
+  return '<svg viewBox="0 0 100 100" aria-hidden="true"><image href="art/trix-piece.png" x="0" y="0" width="100" height="100" preserveAspectRatio="xMidYMid meet"/></svg>';
+}
+function patSVG(){
+  return '<svg viewBox="0 0 100 100" aria-hidden="true"><g stroke="rgba(22,18,12,.5)" stroke-width="13" stroke-linecap="round"><path d="M31 31 L69 69"/><path d="M69 31 L31 69"/></g></svg>';
+}
+function svgURI(inner){
+  return 'url("data:image/svg+xml,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40">'+inner+'</svg>')+'")';
+}
+function wave(y){return "M-3 "+y+" q5 -4 10 0 t10 0 t10 0 t10 0 t10 0"}
+function rnd(seed){
+  var a=seed||1;
+  return function(){a=(a*1103515245+12345)&0x7FFFFFFF;return a/0x7FFFFFFF};
+}
+function terrainTex(kind,v){
+  var R=rnd(kind*977+v*131+17),s="",i,k,x,y,h,lean,t;
+  if(kind<2){
+    var o=v*4;
+    s+='<path d="'+wave(7+o)+'" fill="none" stroke="#fff" stroke-opacity=".36" stroke-width="2.4" stroke-linecap="round"/>';
+    s+='<path d="'+wave(19+o)+'" fill="none" stroke="#fff" stroke-opacity=".22" stroke-width="2.1" stroke-linecap="round"/>';
+    s+='<path d="'+wave(31+o)+'" fill="none" stroke="#000" stroke-opacity=".13" stroke-width="2.1" stroke-linecap="round"/>';
+    s+='<path d="'+wave(40-o)+'" fill="none" stroke="#fff" stroke-opacity=".18" stroke-width="1.8" stroke-linecap="round"/>';
+  }else if(kind<5||kind===10){
+    var hay=(kind===10);
+    var tones=hay?[["#000",".24","1.5"],["#fff",".30","1.4"],["#fff",".58","1.2"]]
+                 :[["#000",".20","1.7"],["#fff",".17","1.5"],["#fff",".42","1.3"]];
+    var count=hay?44:50;
+    for(i=0;i<count;i++){
+      x=R()*46-3;y=R()*48-4;
+      h=(hay?8:5.5)+R()*(hay?7:5.5);
+      lean=(R()-.5)*(hay?7:5);
+      t=tones[i%3];
+      s+='<path d="M'+x.toFixed(1)+' '+y.toFixed(1)+' q'+(lean*0.35).toFixed(1)+' '+(-h*0.6).toFixed(1)+
+         ' '+lean.toFixed(1)+' '+(-h).toFixed(1)+'" fill="none" stroke="'+t[0]+'" stroke-opacity="'+t[1]+
+         '" stroke-width="'+t[2]+'" stroke-linecap="round"/>';
+    }
+    if(kind===2)
+      s+='<circle cx="'+(21+v*4)+'" cy="9" r="1.8" fill="#fff" fill-opacity=".55"/>'+
+         '<circle cx="'+(34+v*2)+'" cy="30" r="1.5" fill="#fff" fill-opacity=".45"/>';
+  }else if(kind<8){
+    for(i=0;i<3;i++)
+      s+='<ellipse cx="'+(R()*40).toFixed(1)+'" cy="'+(R()*40).toFixed(1)+'" rx="'+(7+R()*6).toFixed(1)+
+         '" ry="'+(4+R()*4).toFixed(1)+'" fill="#000" fill-opacity=".10"/>';
+    for(i=0;i<14;i++){
+      x=3+R()*34;y=3+R()*34;
+      var rad=1.6+R()*1.9,pts="";
+      for(k=0;k<5;k++){
+        var ang=(k/5)*6.2832+R()*0.55,pr=rad*(0.7+R()*0.6);
+        pts+=(x+Math.cos(ang)*pr).toFixed(1)+","+(y+Math.sin(ang)*pr*0.85).toFixed(1)+" ";
+      }
+      s+='<polygon points="'+pts+'" fill="#fff" fill-opacity=".26" stroke="#000" stroke-opacity=".34" stroke-width="1.1" stroke-linejoin="round"/>';
+    }
+    for(i=0;i<5;i++)
+      s+='<path d="M'+(R()*36).toFixed(1)+' '+(R()*38).toFixed(1)+' q'+(2+R()*3).toFixed(1)+' '+
+         ((R()-.5)*3).toFixed(1)+' '+(4+R()*4).toFixed(1)+' '+((R()-.5)*4).toFixed(1)+
+         '" fill="none" stroke="#000" stroke-opacity=".17" stroke-width="1.2" stroke-linecap="round"/>';
+  }else{
+    var vert=(kind===9);
+    s+='<path d="'+(vert?"M13.3 0 V40 M26.6 0 V40":"M0 13.3 H40 M0 26.6 H40")+'" stroke="#000" stroke-opacity=".25" stroke-width="1.8" fill="none"/>';
+    s+='<path d="'+(vert?"M14.8 0 V40 M28.1 0 V40":"M0 14.8 H40 M0 28.1 H40")+'" stroke="#fff" stroke-opacity=".15" stroke-width="1.2" fill="none"/>';
+    s+='<ellipse cx="'+(9+v*11)+'" cy="'+(vert?(7+v*9):20)+'" rx="2.8" ry="1.9" fill="#000" fill-opacity=".16"/>';
+    for(i=0;i<5;i++){
+      x=R()*36;y=R()*38;
+      s+='<path d="'+(vert?("M"+x.toFixed(1)+" "+y.toFixed(1)+" q2 6 0 11"):("M"+x.toFixed(1)+" "+y.toFixed(1)+" q6 2 11 0"))+
+         '" stroke="#000" stroke-opacity=".12" stroke-width="1.4" fill="none" stroke-linecap="round"/>';
+    }
+  }
+  return svgURI(s);
+}
+var IMG={};
+var SPAN={};
+var TERRAINS=12;
+var TEX=[];
+(function(){
+  for(var k=0;k<TERRAINS;k++) TEX.push(["none","none","none"]);
+})();
+
+/* ---------------- generator ---------------- */
+function shuffle(a){for(var i=a.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var t=a[i];a[i]=a[j];a[j]=t;}return a}
+function genSolution(n){
+  var cols=new Array(n).fill(-1),used=new Array(n).fill(false);
+  function bt(r){
+    if(r===n) return true;
+    var o=shuffle(Array.from({length:n},function(_,i){return i}));
+    for(var k=0;k<n;k++){
+      var c=o[k];
+      if(used[c]) continue;
+      if(r>0&&Math.abs(cols[r-1]-c)<=1) continue;
+      used[c]=true;cols[r]=c;
+      if(bt(r+1)) return true;
+      used[c]=false;cols[r]=-1;
+    }
+    return false;
+  }
+  return bt(0)?cols:null;
+}
+function growBalanced(n,cols){
+  var N=n*n,reg=new Array(N).fill(-1),sizes=new Array(n).fill(1),left=N-n,r;
+  for(r=0;r<n;r++) reg[r*n+cols[r]]=r;
+  while(left>0){
+    var bi=-1,bg=-1,bw=-1;
+    for(var i=0;i<N;i++){
+      if(reg[i]>=0) continue;
+      var rr=(i/n)|0,cc=i%n,seen=0;
+      for(var d=0;d<4;d++){
+        var y=rr+D[d][0],x=cc+D[d][1];
+        if(y<0||x<0||y>=n||x>=n) continue;
+        var g=reg[y*n+x];
+        if(g<0||(seen>>g)&1) continue;
+        seen|=1<<g;
+        var w=Math.random()/(sizes[g]*sizes[g]);
+        if(w>bw){bw=w;bi=i;bg=g;}
+      }
+    }
+    if(bi<0) return null;
+    reg[bi]=bg;sizes[bg]++;left--;
+  }
+  return reg;
+}
+function solutions(n,reg,limit){
+  var out=[],uc=new Array(n).fill(false),ur=new Array(n).fill(false),cur=new Array(n);
+  function bt(r,p){
+    if(out.length>=limit) return;
+    if(r===n){out.push(cur.slice());return}
+    for(var c=0;c<n;c++){
+      if(uc[c]) continue;
+      if(r>0&&Math.abs(p-c)<=1) continue;
+      var g=reg[r*n+c];
+      if(ur[g]) continue;
+      uc[c]=true;ur[g]=true;cur[r]=c;
+      bt(r+1,c);
+      uc[c]=false;ur[g]=false;
+      if(out.length>=limit) return;
+    }
+  }
+  bt(0,-9);
+  return out;
+}
+function connectedWithout(n,reg,g,x){
+  var cells=[],i;
+  for(i=0;i<n*n;i++) if(reg[i]===g&&i!==x) cells.push(i);
+  if(!cells.length) return false;
+  var seen={},stack=[cells[0]],cnt=1;seen[cells[0]]=1;
+  while(stack.length){
+    var j=stack.pop(),r=(j/n)|0,c=j%n;
+    for(var d=0;d<4;d++){
+      var y=r+D[d][0],xx=c+D[d][1];
+      if(y<0||xx<0||y>=n||xx>=n) continue;
+      var k=y*n+xx;
+      if(k===x||reg[k]!==g||seen[k]) continue;
+      seen[k]=1;cnt++;stack.push(k);
+    }
+  }
+  return cnt===cells.length;
+}
+function repair(n,reg,sol,minS,maxS,maxIter){
+  var sizes=new Array(n).fill(0),stuck=0,i;
+  reg.forEach(function(g){sizes[g]++});
+  for(var it=0;it<maxIter;it++){
+    var sols=solutions(n,reg,6);
+    if(sols.length===1) return reg;
+    var alt=null;
+    for(i=0;i<sols.length;i++){
+      var s=sols[i],diff=false;
+      for(var r0=0;r0<n;r0++) if(s[r0]!==sol[r0]){diff=true;break}
+      if(diff){alt=s;break}
+    }
+    if(!alt) return null;
+    var rows=[];
+    for(i=0;i<n;i++) if(alt[i]!==sol[i]) rows.push(i);
+    shuffle(rows);
+    var done=false;
+    for(var ri=0;ri<rows.length&&!done;ri++){
+      var r=rows[ri],x=r*n+alt[r],g=reg[x];
+      if(sizes[g]<=minS) continue;
+      var rr=(x/n)|0,cc=x%n,opts=[];
+      for(var d=0;d<4;d++){
+        var y=rr+D[d][0],xx=cc+D[d][1];
+        if(y<0||xx<0||y>=n||xx>=n) continue;
+        var g2=reg[y*n+xx];
+        if(g2===g||sizes[g2]>=maxS) continue;
+        if(opts.indexOf(g2)<0) opts.push(g2);
+      }
+      if(!opts.length) continue;
+      if(!connectedWithout(n,reg,g,x)) continue;
+      var kill=[];
+      for(var r2=0;r2<n;r2++){
+        if(r2===r) continue;
+        var g3=reg[r2*n+alt[r2]];
+        if(opts.indexOf(g3)>=0&&kill.indexOf(g3)<0) kill.push(g3);
+      }
+      var pool=kill.length?kill:opts,pick=pool[Math.floor(Math.random()*pool.length)];
+      reg[x]=pick;sizes[g]--;sizes[pick]++;done=true;
+    }
+    if(!done){
+      stuck++;
+      if(stuck>14) return null;
+      var moved=false,pool2=[];
+      for(var i2=0;i2<n*n;i2++){
+        var gg=reg[i2];
+        if(sizes[gg]<=minS) continue;
+        var y2=(i2/n)|0,x2=i2%n;
+        for(var d2=0;d2<4;d2++){
+          var yy=y2+D[d2][0],xx2=x2+D[d2][1];
+          if(yy<0||xx2<0||yy>=n||xx2>=n) continue;
+          var g4=reg[yy*n+xx2];
+          if(g4!==gg&&sizes[g4]<maxS) pool2.push([i2,g4]);
+        }
+      }
+      shuffle(pool2);
+      for(var pi=0;pi<pool2.length;pi++){
+        var ci=pool2[pi][0],cg=pool2[pi][1],isSol=false;
+        for(var r3=0;r3<n;r3++) if(r3*n+sol[r3]===ci){isSol=true;break}
+        if(isSol) continue;
+        if(!connectedWithout(n,reg,reg[ci],ci)) continue;
+        sizes[reg[ci]]--;reg[ci]=cg;sizes[cg]++;moved=true;break;
+      }
+      if(!moved) return null;
+    } else stuck=0;
+  }
+  return null;
+}
+function logicSolve(n,reg){
+  var N=n*n,cand=new Array(N).fill(true),cow=new Array(N).fill(false),placed=0,i;
+  var byReg=[],groups=[];
+  for(i=0;i<n;i++) byReg.push([]);
+  for(i=0;i<N;i++) byReg[reg[i]].push(i);
+  for(var r=0;r<n;r++){var g=[];for(var c=0;c<n;c++)g.push(r*n+c);groups.push(g);}
+  for(var c2=0;c2<n;c2++){var g2=[];for(var r2=0;r2<n;r2++)g2.push(r2*n+c2);groups.push(g2);}
+  for(i=0;i<n;i++) groups.push(byReg[i]);
+  function attacks(i){
+    var out=[],r=(i/n)|0,c=i%n,k;
+    for(k=0;k<n;k++){if(k!==c)out.push(r*n+k);if(k!==r)out.push(k*n+c);}
+    for(var dr=-1;dr<=1;dr++)for(var dc=-1;dc<=1;dc++){
+      var y=r+dr,x=c+dc;
+      if(y<0||x<0||y>=n||x>=n||(dr===0&&dc===0)) continue;
+      out.push(y*n+x);
+    }
+    byReg[reg[i]].forEach(function(j){if(j!==i)out.push(j)});
+    return out;
+  }
+  function place(i){
+    if(cow[i]) return;
+    cow[i]=true;placed++;cand[i]=false;
+    attacks(i).forEach(function(j){cand[j]=false});
+  }
+  var changed=true;
+  while(changed&&placed<n){
+    changed=false;
+    for(var gi=0;gi<groups.length;gi++){
+      var grp=groups[gi],cs=[],hasCow=false;
+      for(i=0;i<grp.length;i++){ if(cow[grp[i]]) hasCow=true; else if(cand[grp[i]]) cs.push(grp[i]); }
+      if(hasCow) continue;
+      if(!cs.length) return false;
+      if(cs.length===1){place(cs[0]);changed=true;continue}
+      var inter=null;
+      for(var k2=0;k2<cs.length;k2++){
+        var s={},a=attacks(cs[k2]);
+        for(i=0;i<a.length;i++) s[a[i]]=1;
+        if(inter===null) inter=s;
+        else{var nx={},keys=Object.keys(inter),any=false;
+          for(i=0;i<keys.length;i++) if(s[keys[i]]){nx[keys[i]]=1;any=true}
+          inter=nx; if(!any) break;}
+      }
+      if(inter) Object.keys(inter).forEach(function(v){
+        if(cand[v|0]){cand[v|0]=false;changed=true}
+      });
+    }
+  }
+  return placed===n;
+}
+function makePuzzle(n){
+  var minS=2,maxS=Math.round(n*1.9),t0=Date.now();
+  while(Date.now()-t0<2500){
+    var cols=genSolution(n);
+    if(!cols) continue;
+    var reg=growBalanced(n,cols);
+    if(!reg) continue;
+    var fixed=repair(n,reg,cols,minS,maxS,400);
+    if(!fixed) continue;
+    if(!logicSolve(n,fixed)) continue;
+    return {n:n,reg:fixed,sol:cols};
+  }
+  var cols2=genSolution(n),reg2=growBalanced(n,cols2),f2=repair(n,reg2,cols2,minS,maxS,600);
+  return {n:n,reg:f2||reg2,sol:cols2};
+}
+
+/* ---------------- state ---------------- */
+var KEY="trixdoku.v1";
+var SIZES=[6,7,8,9];
+var n=8,reg=[],sol=[],marks=[],colorOf=[],undoStack=[];
+var elapsed=0,timer=null,won=false,lost=false,strikes=0,hints=0,cursor=-1;
+var stats={best:{},solved:0};
+var boardEl=$("#board"),cellEls=[];
+
+function idx(r,c){return r*n+c}
+function fmt(s){var m=Math.floor(s/60),x=s%60;return m+":"+(x<10?"0":"")+x}
+
+/* ---------------- rules ---------------- */
+function attacked(i,j){
+  if(i===j) return false;
+  var r1=(i/n)|0,c1=i%n,r2=(j/n)|0,c2=j%n;
+  if(r1===r2||c1===c2) return true;
+  if(Math.abs(r1-r2)<=1&&Math.abs(c1-c2)<=1) return true;
+  return reg[i]===reg[j];
+}
+function cowList(){var o=[];for(var i=0;i<n*n;i++) if(marks[i]===2) o.push(i);return o}
+function conflicts(){
+  var cows=cowList(),bad={};
+  for(var a=0;a<cows.length;a++) for(var b=a+1;b<cows.length;b++)
+    if(attacked(cows[a],cows[b])){bad[cows[a]]=1;bad[cows[b]]=1}
+  return bad;
+}
+
+/* ---------------- render ---------------- */
+function buildBoard(){
+  boardEl.innerHTML="";cellEls=[];
+  boardEl.style.setProperty("--n",n);
+  boardEl.style.gridTemplateColumns="repeat("+n+",1fr)";
+  boardEl.style.gridTemplateRows="repeat("+n+",1fr)";
+  for(var i=0;i<n*n;i++){
+    var r=(i/n)|0,c=i%n,d=document.createElement("div");
+    d.className="cell"+(r===0?" t0":"")+(c===0?" l0":"");
+    d.dataset.i=i;
+    var terr=colorOf[reg[i]];
+    d.style.setProperty("--cc","var(--c"+(terr+1)+")");
+    d.style.setProperty("--tex",TEX[terr][(i*7+r*3)%3]);
+    if(IMG[terr]){d.classList.add("img");d.style.setProperty("--r",r);d.style.setProperty("--c",c);d.style.setProperty("--span",SPAN[terr]||2);}
+    var top=(r>0&&reg[i]!==reg[i-n])?3:0, left=(c>0&&reg[i]!==reg[i-1])?3:0;
+    d.style.borderTopWidth=top+"px";
+    d.style.borderLeftWidth=left+"px";
+    d.innerHTML='<span class="tex"></span><span class="veil"></span><span class="thin"></span>';
+    boardEl.appendChild(d);cellEls.push(d);
+  }
+}
+function paint(){
+  var bad=conflicts(),i;
+  for(i=0;i<n*n;i++){
+    var el=cellEls[i],want=marks[i]===2?"cow":marks[i]===1?"pat":"";
+    if(el._m!==want){
+      var old=el.querySelector("svg");
+      if(old) old.remove();
+      if(want) el.insertAdjacentHTML("beforeend",want==="cow"?cowSVG():patSVG());
+      el._m=want;
+    }
+    el.classList.toggle("marked",marks[i]===1);
+    el.classList.toggle("bad",!!bad[i]);
+    el.classList.toggle("cur",i===cursor);
+  }
+  $("#undo").disabled=undoStack.length===0||won||lost;
+  paintLives();
+  $("#best").textContent=stats.best[n]?fmt(stats.best[n]):"—";
+  $("#time").textContent=fmt(elapsed);
+}
+function layout(){
+  var stage=document.querySelector(".stage");
+  var ch=document.querySelector(".controls").offsetHeight;
+  var fh=document.querySelector(".footline").offsetHeight;
+  var avail=stage.clientHeight-ch-fh-24;
+  var size=Math.floor(Math.min(stage.clientWidth,avail,500));
+  if(size<140) size=140;
+  size=size-(size%n);
+  boardEl.style.width=size+"px";boardEl.style.height=size+"px";
+  boardEl.style.setProperty("--pitch",((size-6)/n)+"px");
+}
+
+function heart(on){
+  return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.6C12 20.6 3.8 15.3 3.8 9.6A4.3 4.3 0 0 1 12 7.2 4.3 4.3 0 0 1 20.2 9.6C20.2 15.3 12 20.6 12 20.6Z" fill="'+
+    (on?"var(--barn)":"none")+'" stroke="var(--barn)" stroke-width="2.4" stroke-opacity="'+(on?"1":".38")+'" stroke-linejoin="round"/></svg>';
+}
+function paintLives(){
+  var h="",i;
+  for(i=0;i<3;i++) h+=heart(i<3-strikes);
+  $("#hearts").innerHTML=h;
+}
+function clashReason(a,b){
+  var r1=(a/n)|0,c1=a%n,r2=(b/n)|0,c2=b%n;
+  if(Math.abs(r1-r2)<=1&&Math.abs(c1-c2)<=1) return "Those two are touching";
+  if(r1===r2) return "Two Trix in one row";
+  if(c1===c2) return "Two Trix in one column";
+  return "Two Trix in one field";
+}
+function strike(i,foe){
+  strikes++;
+  buzz([30,60,30]);
+  cellEls[i].classList.add("shake");
+  setTimeout(function(){if(cellEls[i])cellEls[i].classList.remove("shake")},700);
+  toast((foe>=0?clashReason(i,foe):"Trix cannot go there")+" &mdash; strike "+strikes+" of 3");
+  paint();save();
+  if(strikes>=3){
+    lost=true;runTimer(false);save();paint();
+    setTimeout(loseGame,900);
+  }
+}
+function loseGame(){
+  modal('<h2>Bad Dog! You failed!</h2>'+
+    '<p>Three placements that could never be right. Same board, or a fresh one &mdash; your call.</p>'+
+    '<div class="acts"><button class="btn" data-act="restart">Try again</button>'+
+    '<button class="btn primary" data-act="new">New board</button></div>');
+}
+
+/* ---------------- toast ---------------- */
+var tT=null;
+function toast(msg){
+  var t=$("#toast");t.innerHTML=msg;t.hidden=false;
+  t.classList.remove("show");void t.offsetWidth;t.classList.add("show");
+  clearTimeout(tT);tT=setTimeout(function(){t.hidden=true},2000);
+}
+function buzz(p){try{if(navigator.vibrate)navigator.vibrate(p)}catch(e){}}
+
+/* ---------------- timer ---------------- */
+function tick(){elapsed++;$("#time").textContent=fmt(elapsed);if(elapsed%5===0)save()}
+function runTimer(on){
+  if(timer){clearInterval(timer);timer=null}
+  if(on&&!won&&!lost) timer=setInterval(tick,1000);
+}
+
+/* ---------------- play ---------------- */
+function setMark(i,v,record){
+  if(won||lost||marks[i]===v) return;
+  if(record!==false) undoStack.push([i,marks[i]]);
+  marks[i]=v;
+}
+function afterMove(){
+  paint();save();
+  if(!won&&!lost&&cowList().length===n&&Object.keys(conflicts()).length===0) win();
+}
+function win(){
+  won=true;runTimer(false);
+  stats.solved=(stats.solved||0)+1;
+  var fresh=false;
+  if(hints===0&&(!stats.best[n]||elapsed<stats.best[n])){stats.best[n]=elapsed;fresh=true}
+  save();paint();buzz([20,50,20,50,30]);
+  setTimeout(function(){
+    modal('<h2>Board solved!</h2><div class="bigtime">'+fmt(elapsed)+'</div>'+
+      '<div class="sub">'+n+'&times;'+n+(fresh?" &middot; new best":(stats.best[n]?" &middot; best "+fmt(stats.best[n]):""))+'</div>'+
+      '<p>'+(hints?("You used "+hints+" hint"+(hints>1?"s":"")+", so this one does not count for a best time."):"Every Trix in its own field, row and column, none of them touching.")+'</p>'+
+      '<div class="acts"><button class="btn primary" data-act="new">Next board</button></div>');
+  },420);
+}
+function hint(){
+  if(won||lost) return;
+  var i,wrong=-1;
+  for(i=0;i<n*n;i++) if(marks[i]===2&&sol[(i/n)|0]!==i%n){wrong=i;break}
+  if(wrong>=0){
+    hints++;
+    cellEls[wrong].classList.add("tip");
+    setTimeout(function(){cellEls[wrong].classList.remove("tip")},2100);
+    toast("That one is in the wrong field.");
+    save();return;
+  }
+  var open=[];
+  for(var r=0;r<n;r++){var j=r*n+sol[r];if(marks[j]!==2) open.push(j)}
+  if(!open.length){toast("Nothing left to point at.");return}
+  var pick=open[Math.floor(Math.random()*open.length)];
+  hints++;
+  setMark(pick,2);
+  cellEls[pick].classList.add("tip");
+  setTimeout(function(){cellEls[pick].classList.remove("tip")},2100);
+  toast("One settled.");
+  afterMove();
+}
+function undo(){
+  if(!undoStack.length||won||lost) return;
+  var m=undoStack.pop();
+  marks[m[0]]=m[1];
+  paint();save();
+}
+function restart(){
+  marks=new Array(n*n).fill(0);undoStack=[];elapsed=0;hints=0;won=false;lost=false;strikes=0;
+  runTimer(true);paint();save();hideModal();
+}
+var FAMILY=[0,0,1,1,2,2,3,3,4,4,5,6];
+var SKIP={};
+function pickTerrains(n,reg){
+  var adj=[],g,h,r,c,i,p,q,k;
+  for(g=0;g<n;g++)adj.push({});
+  for(r=0;r<n;r++)for(c=0;c<n;c++){
+    i=r*n+c;
+    if(c+1<n&&reg[i]!==reg[i+1]){adj[reg[i]][reg[i+1]]=1;adj[reg[i+1]][reg[i]]=1;}
+    if(r+1<n&&reg[i]!==reg[i+n]){adj[reg[i]][reg[i+n]]=1;adj[reg[i+n]][reg[i]]=1;}
+  }
+  var best=null,bestBad=1e9,t;
+  for(t=0;t<40;t++){
+    var pool=shuffle(Array.from({length:TERRAINS},function(_,x){return x}).filter(function(x){return !SKIP[x];}));
+    var out=new Array(n).fill(-1),used={},bad=0;
+    for(g=0;g<n;g++){
+      var pick=-1;
+      for(p=0;p<pool.length;p++){
+        k=pool[p];if(used[k])continue;
+        var clash=false;
+        for(h in adj[g])if(out[h]>=0&&FAMILY[out[h]]===FAMILY[k]){clash=true;break;}
+        if(!clash){pick=k;break;}
+      }
+      if(pick<0){for(q=0;q<pool.length;q++)if(!used[pool[q]]){pick=pool[q];break;}bad++;}
+      used[pick]=1;out[g]=pick;
+    }
+    if(bad<bestBad){bestBad=bad;best=out;if(!bad)break;}
+  }
+  return best;
+}
+function newPuzzle(size){
+  hideModal();
+  n=size||n;
+  boardEl.innerHTML='';
+  $("#foot").textContent="Laying out a fresh board…";
+  setTimeout(function(){
+    var p=makePuzzle(n);
+    reg=p.reg;sol=p.sol;
+    colorOf=pickTerrains(n,reg);
+    marks=new Array(n*n).fill(0);undoStack=[];elapsed=0;hints=0;won=false;lost=false;strikes=0;cursor=-1;
+    buildBoard();layout();paint();runTimer(true);save();
+    $("#foot").innerHTML="Tap to rule a square out, hold or double-tap to place <b>Trix</b>. Drag to mark a run.";
+    paintSizes();
+  },30);
+}
+
+/* ---------------- persistence ---------------- */
+function save(){
+  try{
+    localStorage.setItem(KEY,JSON.stringify({
+      n:n,reg:reg,sol:sol,marks:marks,colorOf:colorOf,elapsed:elapsed,
+      hints:hints,won:won,lost:lost,strikes:strikes,stats:stats
+    }));
+  }catch(e){}
+}
+function load(){
+  try{
+    var s=JSON.parse(localStorage.getItem(KEY)||"null");
+    if(!s||!s.reg||!s.sol||s.reg.length!==s.n*s.n) return null;
+    return s;
+  }catch(e){return null}
+}
+
+/* ---------------- modal ---------------- */
+function modal(html){$("#card").innerHTML=html;$("#overlay").hidden=false}
+function hideModal(){$("#overlay").hidden=true}
+$("#overlay").addEventListener("click",function(e){
+  var b=e.target.closest("[data-act]");if(!b)return;
+  var a=b.dataset.act;
+  if(a==="new") newPuzzle();
+  else if(a==="restart") restart();
+  else if(a==="close") hideModal();
+});
+
+/* ---------------- controls ---------------- */
+function paintSizes(){
+  var el=$("#sizes");el.innerHTML="";
+  SIZES.forEach(function(s){
+    var b=document.createElement("button");
+    b.textContent=s;b.className=s===n?"on":"";
+    b.setAttribute("aria-label",s+" by "+s+" board");
+    b.onclick=function(){if(s!==n) newPuzzle(s)};
+    el.appendChild(b);
+  });
+}
+$("#undo").onclick=undo;
+$("#hint").onclick=hint;
+$("#newBtn").onclick=function(){
+  if(won||lost){newPuzzle();return}
+  modal('<h2>Leave this board?</h2><p>You are '+cowList().length+' placed on a '+n+'&times;'+n+' board.</p>'+
+    '<div class="acts"><button class="btn" data-act="close">Keep going</button>'+
+    '<button class="btn" data-act="restart">Clear marks</button>'+
+    '<button class="btn primary" data-act="new">New puzzle</button></div>');
+};
+
+/* ---------------- input ---------------- */
+var press=null,lastTap={i:-1,t:0,was:0},HOLD=430;
+function cellFrom(t){var el=t&&t.closest?t.closest(".cell"):null;return el?+el.dataset.i:-1}
+function dropUndoFor(i){
+  if(undoStack.length&&undoStack[undoStack.length-1][0]===i) undoStack.pop();
+}
+function putCow(i,rewindTo){
+  if(won||lost) return;
+  if(rewindTo!==undefined){dropUndoFor(i);marks[i]=rewindTo;}
+  if(marks[i]===2){paint();return}
+  setMark(i,2);buzz(14);
+  var cows=cowList(),foe=-1,k;
+  for(k=0;k<cows.length;k++) if(cows[k]!==i&&attacked(cows[k],i)){foe=cows[k];break}
+  afterMove();
+  if(foe>=0) strike(i,foe);
+  else if(sol[(i/n)|0]!==(i%n)) strike(i,-1);
+}
+boardEl.addEventListener("contextmenu",function(e){e.preventDefault()});
+boardEl.addEventListener("pointerdown",function(e){
+  if(won||lost) return;
+  var i=cellFrom(e.target);
+  if(i<0) return;
+  cursor=i;
+  var p={i:i,x:e.clientX,y:e.clientY,id:e.pointerId,moved:false,fired:false,from:marks[i],pushed:false,last:i};
+  press=p;
+  if(marks[i]===0){setMark(i,1);p.pushed=true;afterMove();}
+  else paint();
+  p.timer=setTimeout(function(){
+    if(press!==p||p.moved||p.fired) return;
+    p.fired=true;
+    putCow(i,p.pushed?p.from:undefined);
+  },HOLD);
+  try{boardEl.setPointerCapture(e.pointerId)}catch(err){}
+  e.preventDefault();
+},{passive:false});
+boardEl.addEventListener("pointermove",function(e){
+  if(!press||won||lost||e.pointerId!==press.id) return;
+  if(!press.moved&&(Math.abs(e.clientX-press.x)>8||Math.abs(e.clientY-press.y)>8)){
+    press.moved=true;clearTimeout(press.timer);
+  }
+  if(!press.moved||press.from!==0||press.fired) return;
+  var el=document.elementFromPoint(e.clientX,e.clientY),i=cellFrom(el);
+  if(i<0||i===press.last) return;
+  press.last=i;
+  if(marks[i]===0){setMark(i,1);cursor=i;afterMove();}
+},{passive:true});
+function endPress(){
+  if(!press) return;
+  var p=press;press=null;clearTimeout(p.timer);
+  if(p.fired||p.moved){lastTap.i=-1;return}
+  var now=Date.now();
+  if(lastTap.i===p.i&&now-lastTap.t<330){
+    var was=lastTap.was;lastTap.i=-1;
+    putCow(p.i,was);
+    return;
+  }
+  lastTap={i:p.i,t:now,was:p.from};
+  if(p.from!==0){setMark(p.i,0);afterMove();}
+}
+window.addEventListener("pointerup",endPress);
+window.addEventListener("pointercancel",function(){if(press){clearTimeout(press.timer);press=null}});
+
+boardEl.addEventListener("keydown",function(e){
+  var k=e.key;
+  if(cursor<0) cursor=0;
+  var r=(cursor/n)|0,c=cursor%n,moved=true;
+  if(k==="ArrowUp") r=Math.max(0,r-1);
+  else if(k==="ArrowDown") r=Math.min(n-1,r+1);
+  else if(k==="ArrowLeft") c=Math.max(0,c-1);
+  else if(k==="ArrowRight") c=Math.min(n-1,c+1);
+  else moved=false;
+  if(moved){cursor=idx(r,c);paint();e.preventDefault();return}
+  if(k===" "){setMark(cursor,marks[cursor]?0:1);afterMove();e.preventDefault()}
+  else if(k==="Enter"){putCow(cursor);e.preventDefault()}
+});
+
+/* ---------------- boot ---------------- */
+function start(){
+  $("#logo").innerHTML=cowSVG();
+  var s=load();
+  if(s){
+    n=s.n;reg=s.reg;sol=s.sol;marks=s.marks||new Array(n*n).fill(0);
+    colorOf=s.colorOf||Array.from({length:n},function(_,i){return i});
+    elapsed=s.elapsed||0;hints=s.hints||0;won=!!s.won;lost=!!s.lost;strikes=s.strikes||0;
+    stats=s.stats||{best:{},solved:0};
+    buildBoard();paintSizes();layout();paint();
+    if(lost) setTimeout(loseGame,300);
+    if(!won&&!lost) runTimer(true);
+  }else{
+    paintSizes();
+    newPuzzle(8);
+    setTimeout(function(){
+      modal('<h2>How Trixdoku works</h2><ul class="rules">'+
+        '<li>One Trix in every coloured field.</li>'+
+        '<li>One Trix in every row and every column.</li>'+
+        '<li>No two of them touching &mdash; not even corner to corner.</li>'+
+        '<li>Put Trix anywhere she does not belong and it costs a life. Three and the round is over.</li>'+
+        '<li>Tap a square to rule it out. Hold it, or double-tap, to place Trix there.</li>'+
+        '</ul><div class="acts"><button class="btn primary" data-act="close">Start playing</button></div>');
+    },420);
+  }
+  window.addEventListener("resize",layout);
+  if(window.visualViewport) window.visualViewport.addEventListener("resize",layout);
+  setTimeout(layout,150);
+  document.addEventListener("visibilitychange",function(){
+    if(document.hidden){runTimer(false);save()} else if(!won&&!lost) runTimer(true);
+  });
+  try{
+    if(window.claude&&window.claude.hot&&window.claude.hot.snapshot)
+      window.claude.hot.snapshot(function(){return {v:1}});
+  }catch(e){}
+}
+start();
+})();
+</script>

@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Cowdoku</title>
+<meta name="description" content="Three little logic puzzles: one cow per field, one per row, one per column.">
+<meta name="theme-color" content="#E9F0DC">
+<link rel="icon" href="art/trix-piece.png">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chewy&family=Nunito:wght@600;700;900&display=swap">
+<style>
+:root{
+  --bg:#E9F0DC; --surface:#FBF7EC; --surface2:#EFE7D2;
+  --ink:#27331F; --muted:#6E7B60;
+  --grass:#7FA84F; --grass-deep:#4E7238;
+  --edge:rgba(39,51,31,.16);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#141D18; --surface:#1E2922; --surface2:#26332B;
+    --ink:#E9F0DE; --muted:#93A388;
+    --grass:#8CB95A; --grass-deep:#A7D072;
+    --edge:rgba(233,240,222,.16);
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#141D18; --surface:#1E2922; --surface2:#26332B;
+  --ink:#E9F0DE; --muted:#93A388;
+  --grass:#8CB95A; --grass-deep:#A7D072;
+  --edge:rgba(233,240,222,.16);
+}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;background:var(--bg);color:var(--ink);
+  font-family:Nunito,system-ui,-apple-system,sans-serif;font-weight:700;
+  display:flex;align-items:center;justify-content:center;padding:32px 16px}
+main{width:100%;max-width:440px;text-align:center}
+h1{font-family:Chewy,cursive;font-weight:400;font-size:40px;margin:0 0 6px;letter-spacing:.5px}
+.tag{color:var(--muted);font-size:14px;margin:0 0 26px;line-height:1.5}
+.games{display:flex;flex-direction:column;gap:12px}
+a.game{display:flex;align-items:center;gap:14px;text-decoration:none;color:inherit;
+  background:var(--surface);border:2px solid var(--edge);border-radius:18px;padding:12px 16px;
+  transition:transform .12s ease,border-color .12s ease}
+a.game:hover,a.game:focus-visible{transform:translateY(-2px);border-color:var(--grass)}
+a.game img{width:52px;height:52px;object-fit:contain;border-radius:12px;flex:0 0 52px}
+a.game .txt{text-align:left;flex:1;min-width:0}
+a.game b{display:block;font-family:Chewy,cursive;font-weight:400;font-size:23px;line-height:1.1}
+a.game span{display:block;color:var(--muted);font-size:12.5px;line-height:1.4;margin-top:2px}
+.rules{margin:28px 0 0;color:var(--muted);font-size:12.5px;line-height:1.7;text-align:left;
+  background:var(--surface2);border-radius:16px;padding:14px 18px}
+.rules b{color:var(--ink)}
+footer{margin:20px 0 0;color:var(--muted);font-size:11.5px}
+</style>
+</head>
+<body>
+<main>
+  <h1>Cowdoku &amp; friends</h1>
+  <p class="tag">Three little logic puzzles. Same rules, different animal.</p>
+
+  <div class="games">
+    <a class="game" href="trixdoku.html">
+      <img src="art/trix-piece.png" alt="">
+      <span class="txt"><b>Trixdoku</b><span>50 levels with Trixie, and a shared leaderboard.</span></span>
+    </a>
+    <a class="game" href="cocodoku.html">
+      <img src="art/coco-piece.png" alt="">
+      <span class="txt"><b>Cocodoku</b><span>The same 50 levels, with Coco.</span></span>
+    </a>
+    <a class="game" href="cowdoku.html">
+      <img src="tiles/grass-1.png" alt="">
+      <span class="txt"><b>Cowdoku</b><span>Free play on hand-painted fields.</span></span>
+    </a>
+  </div>
+
+  <p class="rules">
+    <b>How to play.</b> Put one animal in every coloured field, one in every row
+    and one in every column. No two may touch, not even corner to corner.
+    Tap a square once to rule it out, twice to place your animal.
+  </p>
+
+  <footer>Best times and records are kept for everyone who plays.</footer>
+</main>
+</body>
+</html>

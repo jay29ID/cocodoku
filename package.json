@@ -1,0 +1,9 @@
+{
+  "name": "cocodoku",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "bun server.ts",
+    "dev": "DATA_DIR=. PORT=3111 bun server.ts"
+  }
+}
