@@ -15,9 +15,34 @@ const GAMES: Record<string, string> = {
 };
 
 type Rec = { ini: string; sc: number; t: number; at: number };
-let recs: Record<string, Record<string, Rec>> = {};
+
+// Each level keeps its own small high score table rather than one record.
+const KEEP = 5;
+let recs: Record<string, Record<string, Rec[]>> = {};
+
+function rank(list: Rec[]) {
+  list.sort((a, b) => b.sc - a.sc || a.t - b.t || a.at - b.at);
+  if (list.length > KEEP) list.length = KEEP;
+  return list;
+}
+
+// Levels used to hold a single record object; read those as a table of one.
+function normalize(raw: any) {
+  const out: Record<string, Record<string, Rec[]>> = {};
+  for (const g of Object.keys(raw || {})) {
+    const from = raw[g] || {};
+    const to: Record<string, Rec[]> = {};
+    for (const k of Object.keys(from)) {
+      const v = from[k];
+      to[k] = rank(Array.isArray(v) ? v.slice() : v ? [v] : []);
+    }
+    out[g] = to;
+  }
+  return out;
+}
+
 try {
-  recs = await Bun.file(RECS).json();
+  recs = normalize(await Bun.file(RECS).json());
 } catch {
   recs = {};
 }
@@ -113,9 +138,11 @@ Bun.serve({
         if (!Number.isFinite(sc) || sc < 1 || sc > 100000) return json({ error: "bad score" }, 400);
         if (!Number.isFinite(t) || t < 1 || t > 86400) return json({ error: "bad time" }, 400);
         const tbl = recs[g] || (recs[g] = {});
-        const cur = tbl[String(lv)];
-        if (!cur || sc > cur.sc) {
-          tbl[String(lv)] = { ini, sc, t, at: Date.now() };
+        const list = tbl[String(lv)] || (tbl[String(lv)] = []);
+        const worst = list.length ? list[list.length - 1].sc : 0;
+        if (list.length < KEEP || sc > worst) {
+          list.push({ ini, sc, t, at: Date.now() });
+          rank(list);
           await persist();
         }
         return json({ game: g, records: tbl });
