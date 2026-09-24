@@ -7,8 +7,8 @@ animal.
 
 | | |
 |---|---|
-| **Cocodoku** | 50 levels, 6x6 up to 11x11, with Coco. Served at `/`. |
-| **Trixdoku** | The same 50 levels, with Trixie. `/trixdoku` |
+| **Cocodoku** | 80 levels, 6x6 up to 11x11, with Coco. Served at `/`. |
+| **Trixdoku** | The same 80 levels, with Trixie. `/trixdoku` |
 | **Cowdoku** | Free play on hand-painted fields. `/cowdoku` |
 
 `/games` lists all three.
@@ -20,17 +20,42 @@ bun server.ts            # serves ./web on $PORT (default 3000)
 bun run dev              # port 3111, records kept in ./records.json
 ```
 
-`server.ts` is the whole backend: it serves the files in `web/` and keeps the
-shared leaderboard.
+`server.ts` is the whole backend: it serves the files in `web/`, keeps the
+accounts and keeps the shared leaderboard.
 
-- `GET /api/records?game=cocodoku` — every level's record holder
-- `POST /api/records` `{game, level, ini, sc, t}` — kept only if it beats the
-  standing record for that level
+Scores:
+
+- `GET /api/records?game=cocodoku` — the top five for every level
+- `POST /api/records` `{game, level, ini, sc, t}` — kept if it reaches that
+  level's top five. Signed in, the account supplies the name and the score
+  replaces that player's own earlier one rather than taking a second place.
 - `GET /api/health`
 
-Records live in `records.json` under `DATA_DIR` (`/data` in production, which
-is a Railway volume, so they survive redeploys). Nothing else is persisted;
-each player's own progress and best times stay in their browser.
+Accounts:
+
+- `POST /api/signup` `{handle, pass, name, ini}` and `POST /api/login`
+  `{handle, pass}` — both set the session cookie
+- `POST /api/logout`, `GET /api/me`
+- `POST /api/profile` `{name, ini, bio, avatar}` and `POST /api/password`
+  `{old, pass}`
+- `POST /api/avatar` — the picture itself as the body
+- `GET /api/user?handle=` — anyone's public profile
+- `GET|POST /api/progress` — the player's stars, best times and clean runs, so
+  an account picks up where it left off on another phone
+
+Everything lives under `DATA_DIR` (`/data` in production, which is a Railway
+volume, so it survives redeploys): `app.db`, a SQLite database Bun opens
+itself, and `avatars/` beside it. A `records.json` left over from before the
+database is imported once on boot and then set aside as `records.json.imported`.
+
+Passwords are hashed with argon2id (`Bun.password`). The session cookie is
+httpOnly, SameSite=Lax and Secure behind Railway's proxy. Sign-in, sign-up,
+uploads and score posts are rate limited per address. Uploaded pictures are
+squared and shrunk to 256px in the browser, then checked by magic bytes on the
+way in: PNG, JPEG, GIF and WebP only, never SVG, which can carry script.
+
+Playing signed out still works and still keeps three initials on the board;
+nothing about an account is required.
 
 ## Scoring
 
@@ -49,11 +74,12 @@ one otherwise; a hint caps the level at two stars.
 
 ```
 src/trixdoku.base.html
-  -> build/add_levels.py     the 50-level ladder
+  -> build/add_levels.py     the level ladder
   -> build/add_scores.py     scoring, records, the Records screen
   -> build/build.py          emits cocodoku.html from trixdoku.html
   -> build/add_server.py     points the leaderboard at /api/records,
                              writes web/
+  -> build/add_accounts.py   profiles, avatars and badges, over web/
 ```
 
 `build/make.sh` runs the first three. Cowdoku (`src/cowdoku.html`) is separate:
@@ -72,4 +98,5 @@ it, which matters: the photos arrive around 3000px for a 40px game piece.
 ## Deploying
 
 Railway builds the Dockerfile and runs `bun server.ts`. The one thing it needs
-is a volume mounted at `/data` so the leaderboard survives a redeploy.
+is a volume mounted at `/data`, which is where the database and the avatars
+live, so accounts and scores survive a redeploy.
