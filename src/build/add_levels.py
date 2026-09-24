@@ -12,6 +12,15 @@ order=[]
 for size in ['6','7','8','9','10','11']:
     for lv in data.get(size,[]): order.append(lv)
 
+# Later batches are APPENDED, never merged by size. A level's index is its
+# identity: saved progress, stars, best times and every leaderboard row are
+# keyed by it, so inserting a new 9x9 among the old ones would quietly move
+# everybody's records onto different puzzles.
+for fn in ['levels-extra.json']:
+    extra = load(fn)
+    for size in ['6','7','8','9','10','11']:
+        for lv in extra.get(size,[]): order.append(lv)
+
 def enc(a):
     return ''.join(format(x,'x') if x<16 else '?' for x in a)   # n<=11 so 0..a
 
@@ -163,6 +172,32 @@ s=s.replace('''  if(a==="new") newPuzzle();
   else if(a==="levels") levelPicker();
   else if(a==="free"){hideModal();newPuzzle();}
   else if(a==="restart") restart();''')
+
+# ---------- "there are new levels" card ----------
+# Returning players get no modal on boot, so this is where they find out the
+# ladder grew. The id follows the level count, so the next batch announces
+# itself with no further work; somebody who has never played is skipped,
+# since the whole game is new to them anyway.
+s=s.replace('''    if(lost) setTimeout(loseGame,300);
+    if(!won&&!lost) runTimer(true);''',
+            '''    if(lost) setTimeout(loseGame,300);
+    if(!won&&!lost) runTimer(true);
+    if(!lost) setTimeout(newsCard,420);''')
+
+s=s.replace('''function unlocked(k){return k===0||!!prog.star[k-1]}''',
+            '''function unlocked(k){return k===0||!!prog.star[k-1]}
+var NEWS="lv"+LEVELS.length;
+function newsCard(){
+  if(prog.news===NEWS) return;
+  var played=prog.star&&Object.keys(prog.star).length>0;
+  if(!played||!$("#overlay").hidden) return;
+  prog.news=NEWS;save();
+  var top=LEVELS[LEVELS.length-1].n;
+  modal(\'<h2>New levels</h2><p>The ladder is longer: \'+LEVELS.length+
+    \' levels now, up to \'+top+\'x\'+top+\'. Your progress is where you left it.</p>\'+
+    \'<div class="acts"><button class="btn" data-act="close">Later</button>\'+
+    \'<button class="btn primary" data-act="levels">Show me</button></div>\');
+}''')
 
 # ---------- persistence ----------
 s=s.replace('''      hints:hints,won:won,lost:lost,strikes:strikes,stats:stats''',
