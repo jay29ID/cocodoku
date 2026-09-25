@@ -46,6 +46,7 @@ CSS = '''
 .ava.sm{width:25px;height:25px}
 .ava.sm b{font-size:13px}
 .ava.sm u{font-size:10px;letter-spacing:.5px}
+.card{max-height:100%;overflow:auto}
 .prof{display:flex;gap:12px;align-items:center;text-align:left;margin:0 0 14px}
 .pmeta{min-width:0}
 .pmeta b{font-size:13px;color:var(--muted);font-weight:800}
@@ -54,11 +55,14 @@ CSS = '''
 .stat{background:var(--surface2);border:2px solid var(--edge);border-radius:12px;padding:5px 2px}
 .stat b{display:block;font-family:Chewy,cursive;font-weight:400;font-size:19px;line-height:1.15}
 .stat span{display:block;font-size:8.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
-.badges{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 14px;max-height:26vh;overflow:auto}
+.badges{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px;max-height:28vh;overflow:auto;padding:2px}
 .badge{display:flex;align-items:center;gap:5px;background:var(--surface2);border:2px solid var(--edge);
-  border-radius:11px;padding:4px 8px;font-size:11.5px;font-weight:800;opacity:.4}
+  border-radius:11px;padding:4px 8px;font-size:11.5px;font-weight:800;opacity:.45;
+  font-family:inherit;color:var(--ink);cursor:pointer;line-height:1.2}
 .badge.on{opacity:1;background:var(--grass);border-color:var(--grass-deep);color:#16210F}
+.badge.sel{outline:2px solid var(--gold);outline-offset:1px}
 .badge b{font-weight:400;font-size:14px}
+.badge u{text-decoration:none;opacity:.75;font-size:10px;font-variant-numeric:tabular-nums}
 .form{display:flex;flex-direction:column;gap:8px;margin:0 0 12px}
 .card input[type=text],.card input[type=password]{font-family:inherit;font-weight:700;font-size:15px;
   padding:9px 11px;border-radius:12px;border:2px solid var(--edge);background:var(--surface2);color:var(--ink);
@@ -146,27 +150,103 @@ function startAccount(){
 }
 
 /* ---------------- badges ---------------- */
+// Everything here is worked out from the progress the game already keeps plus
+// the account's own totals, so badges need no storage of their own. A locked
+// one carries how far along it is, which is most of what makes them worth
+// chasing.
+function countKeys(o){var n=0,k;for(k in (o||{}))n++;return n}
+function starCount(min){var n=0,k,m=prog.star||{};for(k in m) if(m[k]>=min)n++;return n}
+function modeMap(c){return (prog.mode||{})[c]||{}}
+function modeCount(c){return countKeys(modeMap(c))}
+function biggestIn(c){
+  var m=c?modeMap(c):(prog.star||{}),k,top=0;
+  for(k in m) if(LEVELS[k]&&LEVELS[k].n>top) top=LEVELS[k].n;
+  return top;
+}
+function sizesDone(){
+  var m=prog.star||{},seen={},k,n=0;
+  for(k in m) if(LEVELS[k]&&!seen[LEVELS[k].n]){seen[LEVELS[k].n]=1;n++}
+  return n;
+}
+function SIZECOUNT(){
+  var seen={},k,n=0;
+  for(k=0;k<LEVELS.length;k++) if(!seen[LEVELS[k].n]){seen[LEVELS[k].n]=1;n++}
+  return n;
+}
+function triples(){
+  var a=modeMap("nomark"),b=modeMap("onelife"),c=modeMap("rush"),k,n=0;
+  for(k in a) if(b[k]&&c[k]) n++;
+  return n;
+}
+function tier(icon,name,what,have,need){
+  return {i:icon,n:name,d:what,at:Math.min(have,need),of:need,got:have>=need};
+}
 function badges(){
-  var st=prog.star||{},cl=prog.clean||{},done=0,three=0,big=0,k;
-  for(k in st){done++;if(st[k]>=3)three++;if(LEVELS[k]&&LEVELS[k].n>=10)big++}
-  var clean=Object.keys(cl).length,firsts=(MESTATS&&MESTATS.firsts)||0;
+  var s=MESTATS||{total:0,firsts:0},done=countKeys(prog.star),all=LEVELS.length;
+  var clean=countKeys(prog.clean),fast=countKeys(prog.fast),nohint=countKeys(prog.nohint);
+  var days=countKeys(prog.days),fl=prog.flags||{};
+  var nm=modeCount("nomark"),ol=modeCount("onelife"),ru=modeCount("rush"),tri=triples();
   return [
-    {i:"\\ud83c\\udf31",n:"First one",d:"Finish a level",got:done>=1},
-    {i:"\\ud83d\\udd1f",n:"Ten down",d:"Finish ten levels",got:done>=10},
-    {i:"\\ud83c\\udfc3",n:"Regular",d:"Finish forty levels",got:done>=40},
-    {i:"\\ud83c\\udfc1",n:"The lot",d:"Finish every level",got:done>=LEVELS.length},
-    {i:"\\u2b50",n:"Three stars",d:"Three stars on a level",got:three>=1},
-    {i:"\\u2728",n:"Star collector",d:"Three stars on twenty-five levels",got:three>=25},
-    {i:"\\ud83d\\udee1",n:"No mistakes",d:"Finish a level without losing a life",got:clean>=1},
-    {i:"\\ud83e\\udde0",n:"Steady hand",d:"Ten levels without losing a life",got:clean>=10},
-    {i:"\\ud83d\\udd0d",n:"Big board",d:"Finish a 10x10 or bigger",got:big>=1},
-    {i:"\\ud83c\\udfc6",n:"Top score",d:"Hold the best score on a level",got:firsts>=1},
-    {i:"\\ud83d\\udc51",n:"Board hog",d:"Best score on five levels",got:firsts>=5}
+    tier("\\ud83c\\udf31","First one","Finish a level",done,1),
+    tier("\\ud83d\\udd1f","Ten down","Finish ten levels",done,10),
+    tier("\\ud83c\\udfc3","Regular","Finish forty levels",done,40),
+    tier("\\ud83c\\udfc1","The lot","Finish every level",done,all),
+    tier("\\u2b50","Three stars","Three stars on a level",starCount(3),1),
+    tier("\\u2728","Star collector","Three stars on twenty-five levels",starCount(3),25),
+    tier("\\ud83c\\udf1f","Constellation","Three stars on sixty levels",starCount(3),60),
+    tier("\\ud83d\\udc51","Perfect ladder","Three stars on every level",starCount(3),all),
+    tier("\\ud83d\\udee1","No mistakes","Finish a level without losing a life",clean,1),
+    tier("\\ud83e\\udde0","Steady hand","Ten levels without losing a life",clean,10),
+    tier("\\ud83e\\uddca","Ice cold","Forty levels without losing a life",clean,40),
+    tier("\\ud83d\\udd26","Unaided","Ten levels with no hints",nohint,10),
+    tier("\\ud83d\\uddfa","Own devices","Forty levels with no hints",nohint,40),
+    tier("\\u26a1","Quick","Finish a level in half the par time",fast,1),
+    tier("\\ud83d\\ude80","Blur","Ten levels in half the par time",fast,10),
+    tier("\\ud83c\\udf2a","Turbo","Thirty levels in half the par time",fast,30),
+    tier("\\ud83d\\udd0d","Big board","Finish a 10x10",biggestIn("")>=10?1:0,1),
+    tier("\\ud83e\\uddf1","Bigger board","Finish an 11x11",biggestIn("")>=11?1:0,1),
+    tier("\\ud83d\\udcd0","Every size","Finish a level at every size",sizesDone(),SIZECOUNT()),
+    tier("\\ud83d\\ude48","In the dark","Finish a level with no marks",nm,1),
+    tier("\\ud83e\\udde9","Memory work","Ten levels with no marks",nm,10),
+    tier("\\ud83d\\udd76","All in the head","Forty levels with no marks",nm,40),
+    tier("\\ud83d\\udc94","One shot","Finish a level on one life",ol,1),
+    tier("\\ud83e\\udd38","Tightrope","Ten levels on one life",ol,10),
+    tier("\\ud83e\\ude78","Nerves of steel","Forty levels on one life",ol,40),
+    tier("\\u23f1","Beat the clock","Finish a level against the clock",ru,1),
+    tier("\\u23f3","Clockwork","Ten levels against the clock",ru,10),
+    tier("\\ud83d\\udd25","Time lord","Forty levels against the clock",ru,40),
+    tier("\\ud83c\\udfaf","Triple","One level finished in all three challenges",tri,1),
+    tier("\\ud83c\\udf96","Ten triples","Ten levels finished in all three challenges",tri,10),
+    tier("\\ud83d\\udc09","Big and blind","A 10x10 or bigger with no marks",biggestIn("nomark")>=10?1:0,1),
+    tier("\\u2604","Against the big clock","An 11x11 against the clock",biggestIn("rush")>=11?1:0,1),
+    tier("\\ud83c\\udfc6","Top score","Hold the best score on a level",s.firsts||0,1),
+    tier("\\ud83e\\udd47","Board hog","Best score on five levels",s.firsts||0,5),
+    tier("\\ud83d\\udc8e","Untouchable","Best score on fifteen levels",s.firsts||0,15),
+    tier("\\ud83d\\udcb0","Ten thousand","Ten thousand points all told",s.total||0,10000),
+    tier("\\ud83c\\udfe6","Fifty thousand","Fifty thousand points all told",s.total||0,50000),
+    tier("\\ud83d\\uddff","Two hundred thousand","Two hundred thousand points all told",s.total||0,200000),
+    tier("\\ud83c\\udf19","Night owl","Finish a level before six in the morning",fl.night?1:0,1),
+    tier("\\ud83d\\udd01","Comeback","Win a level after losing two lives",fl.comeback?1:0,1),
+    tier("\\ud83d\\udcc5","Three days","Play on three different days",days,3),
+    tier("\\ud83d\\uddd3","A week","Play on seven different days",days,7),
+    tier("\\ud83e\\udded","A month","Play on thirty different days",days,30)
   ];
 }
 
 /* ---------------- cards ---------------- */
 function statCell(v,label){return '<div class="stat"><b>'+v+'</b><span>'+label+'</span></div>'}
+var badgeSel=-1;
+// One line per way to play, so a profile shows at a glance where somebody has
+// been spending their time.
+function modeStrip(){
+  var h='<div class="tot">',i,c,done;
+  for(i=0;i<CHALS.length;i++){
+    c=CHALS[i];
+    done=c.k?countKeys(modeMap(c.k)):countKeys(prog.star);
+    h+='<span>'+esc(c.sn||c.n)+' <b>'+done+'</b></span>';
+  }
+  return h+'</div>';
+}
 function accountCard(msg,quiet){
   if(!ME) return signCard("in","");
   var s=MESTATS||{total:0,firsts:0};
@@ -174,16 +254,24 @@ function accountCard(msg,quiet){
   for(k in st){done++;stars+=st[k]}
   var list=badges(),got=0,i;
   for(i=0;i<list.length;i++) if(list[i].got) got++;
+  var sel=list[badgeSel];
   var h='<h2 id="profCard">'+esc(ME.name)+'</h2>'+
     '<div class="prof">'+avaHTML(ME.avatar,ME.ini,"big")+
       '<div class="pmeta"><b>@'+esc(ME.handle)+'</b>'+(ME.bio?'<p>'+esc(ME.bio)+'</p>':'')+'</div></div>'+
     '<div class="stats">'+statCell(done,"levels")+statCell(stars,"stars")+
       statCell(s.total||0,"points")+statCell(s.firsts||0,"top scores")+'</div>'+
+    modeStrip()+
     (msg?'<p class="ok">'+esc(msg)+'</p>':'')+
     '<div class="lvhead">Badges '+got+' of '+list.length+'</div><div class="badges">';
   for(i=0;i<list.length;i++)
-    h+='<span class="badge'+(list[i].got?" on":"")+'" title="'+esc(list[i].d)+'"><b>'+list[i].i+'</b>'+esc(list[i].n)+'</span>';
-  h+='</div><div class="acts"><button class="btn" data-act="editprof">Edit profile</button>'+
+    h+='<button class="badge'+(list[i].got?" on":"")+(i===badgeSel?" sel":"")+
+       '" data-act="badge" data-bd="'+i+'" title="'+esc(list[i].d)+'"><b>'+list[i].i+'</b>'+esc(list[i].n)+
+       (!list[i].got&&list[i].of>1?'<u>'+list[i].at+'/'+list[i].of+'</u>':'')+'</button>';
+  h+='</div>'+
+     (sel?'<p class="note">'+esc(sel.n)+' \u2014 '+esc(sel.d)+
+          (sel.got?'. Earned.':'. '+sel.at+' of '+sel.of+'.')+'</p>':
+          '<p class="note">Tap a badge to see what it takes.</p>')+
+     '<div class="acts"><button class="btn" data-act="editprof">Edit profile</button>'+
      '<button class="btn" data-act="records">Records</button>'+
      '<button class="btn primary" data-act="close">Back</button></div>'+
      '<p class="note"><button class="linkbtn" data-act="signout">Sign out</button></p>';
@@ -312,7 +400,9 @@ function signOut(){
 
 /* ---------------- progress sync ---------------- */
 function progBody(){
-  return {star:prog.star||{},best:prog.best||{},rec:prog.rec||{},clean:prog.clean||{},ini:prog.ini||""};
+  return {star:prog.star||{},best:prog.best||{},rec:prog.rec||{},clean:prog.clean||{},
+    mode:prog.mode||{},mbest:prog.mbest||{},fast:prog.fast||{},nohint:prog.nohint||{},
+    days:prog.days||{},flags:prog.flags||{},ini:prog.ini||""};
 }
 function mergeProg(r){
   if(!r) return false;
@@ -322,6 +412,21 @@ function mergeProg(r){
   for(k in (r.best||{})) if(!prog.best[k]||r.best[k]<prog.best[k]){prog.best[k]=r.best[k];ch=true}
   for(k in (r.rec||{})) if(r.rec[k]&&(!prog.rec[k]||r.rec[k].sc>prog.rec[k].sc)){prog.rec[k]=r.rec[k];ch=true}
   for(k in (r.clean||{})) if(!prog.clean[k]){prog.clean[k]=1;ch=true}
+  prog.fast=prog.fast||{};prog.nohint=prog.nohint||{};prog.days=prog.days||{};
+  prog.flags=prog.flags||{};prog.mode=prog.mode||{};prog.mbest=prog.mbest||{};
+  for(k in (r.fast||{})) if(!prog.fast[k]){prog.fast[k]=1;ch=true}
+  for(k in (r.nohint||{})) if(!prog.nohint[k]){prog.nohint[k]=1;ch=true}
+  for(k in (r.days||{})) if(!prog.days[k]){prog.days[k]=1;ch=true}
+  for(k in (r.flags||{})) if(!prog.flags[k]){prog.flags[k]=r.flags[k];ch=true}
+  var c,lv;
+  for(c in (r.mode||{})){
+    prog.mode[c]=prog.mode[c]||{};
+    for(lv in r.mode[c]) if(!prog.mode[c][lv]||r.mode[c][lv]>prog.mode[c][lv]){prog.mode[c][lv]=r.mode[c][lv];ch=true}
+  }
+  for(c in (r.mbest||{})){
+    prog.mbest[c]=prog.mbest[c]||{};
+    for(lv in r.mbest[c]) if(!prog.mbest[c][lv]||r.mbest[c][lv]<prog.mbest[c][lv]){prog.mbest[c][lv]=r.mbest[c][lv];ch=true}
+  }
   return ch;
 }
 function pullProgress(){
@@ -361,6 +466,7 @@ ACTS = '''  else if(a==="me"){accountCard();return}
       .catch(function(e){passCard(e.message,"")});
     return;
   }
+  else if(a==="badge"){badgeSel=(+b.dataset.bd===badgeSel)?-1:+b.dataset.bd;accountCard("",true);return}
   else if(a==="signout"){signOut();return}
 '''
 

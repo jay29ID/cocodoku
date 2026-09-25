@@ -13,6 +13,29 @@ animal.
 
 `/games` lists all three.
 
+## Ways to play
+
+Every level can be played four ways. The rules change, the puzzle does not, so
+eighty levels are worth four times as much without a new puzzle being
+generated. Each one keeps its own scores, stars and leaderboard, and the
+harder the rules the more a finish is worth.
+
+| | |
+|---|---|
+| **Normal** | Three lives, and you can rule squares out as you go. |
+| **No marks** | No X marks at all: a tap places the piece. Scores 1.6x. |
+| **One life** | One wrong placement ends the round. Scores 1.5x. |
+| **Against the clock** | The three-star time is the whole budget, counting down. Scores 1.4x. |
+
+Pick one at the top of the Levels screen. A level opens once the one before it
+has been finished in any mode.
+
+Forty-three badges sit on the profile, from finishing a first level to three
+stars on all eighty, forty levels with no marks, or playing on thirty
+different days. They are worked out in the browser from progress the game
+already keeps, so they need no storage of their own; a locked one shows how
+far along it is.
+
 ## Running it
 
 ```sh
@@ -25,8 +48,9 @@ accounts and keeps the shared leaderboard.
 
 Scores:
 
-- `GET /api/records?game=cocodoku` — the top five for every level
-- `POST /api/records` `{game, level, ini, sc, t}` — kept if it reaches that
+- `GET /api/records?game=cocodoku&mode=nomark` — the top five for every level
+  in that mode (`mode` is empty for the ordinary game)
+- `POST /api/records` `{game, mode, level, ini, sc, t}` — kept if it reaches that
   level's top five. Signed in, the account supplies the name and the score
   replaces that player's own earlier one rather than taking a second place.
 - `GET /api/health`
@@ -42,6 +66,10 @@ Accounts:
 - `GET /api/user?handle=` — anyone's public profile
 - `GET|POST /api/progress` — the player's stars, best times and clean runs, so
   an account picks up where it left off on another phone
+
+Scores are keyed by game, mode, level and player, so each mode has its own
+board and a new best replaces that player's own row rather than taking a
+second place on it.
 
 Everything lives under `DATA_DIR` (`/data` in production, which is a Railway
 volume, so it survives redeploys): `app.db`, a SQLite database Bun opens
@@ -80,6 +108,7 @@ src/trixdoku.base.html
   -> build/add_server.py     points the leaderboard at /api/records,
                              writes web/
   -> build/add_accounts.py   profiles, avatars and badges, over web/
+  -> build/add_modes.py      the challenge modes, over web/
 ```
 
 `build/make.sh` runs the first three. Cowdoku (`src/cowdoku.html`) is separate:

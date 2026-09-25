@@ -176,6 +176,7 @@ h1{font-family:Chewy,Nunito,cursive;font-weight:400;font-size:25px;margin:0;line
 .ava.sm{width:25px;height:25px}
 .ava.sm b{font-size:13px}
 .ava.sm u{font-size:10px;letter-spacing:.5px}
+.card{max-height:100%;overflow:auto}
 .prof{display:flex;gap:12px;align-items:center;text-align:left;margin:0 0 14px}
 .pmeta{min-width:0}
 .pmeta b{font-size:13px;color:var(--muted);font-weight:800}
@@ -184,11 +185,14 @@ h1{font-family:Chewy,Nunito,cursive;font-weight:400;font-size:25px;margin:0;line
 .stat{background:var(--surface2);border:2px solid var(--edge);border-radius:12px;padding:5px 2px}
 .stat b{display:block;font-family:Chewy,cursive;font-weight:400;font-size:19px;line-height:1.15}
 .stat span{display:block;font-size:8.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
-.badges{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 14px;max-height:26vh;overflow:auto}
+.badges{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px;max-height:28vh;overflow:auto;padding:2px}
 .badge{display:flex;align-items:center;gap:5px;background:var(--surface2);border:2px solid var(--edge);
-  border-radius:11px;padding:4px 8px;font-size:11.5px;font-weight:800;opacity:.4}
+  border-radius:11px;padding:4px 8px;font-size:11.5px;font-weight:800;opacity:.45;
+  font-family:inherit;color:var(--ink);cursor:pointer;line-height:1.2}
 .badge.on{opacity:1;background:var(--grass);border-color:var(--grass-deep);color:#16210F}
+.badge.sel{outline:2px solid var(--gold);outline-offset:1px}
 .badge b{font-weight:400;font-size:14px}
+.badge u{text-decoration:none;opacity:.75;font-size:10px;font-variant-numeric:tabular-nums}
 .form{display:flex;flex-direction:column;gap:8px;margin:0 0 12px}
 .card input[type=text],.card input[type=password]{font-family:inherit;font-weight:700;font-size:15px;
   padding:9px 11px;border-radius:12px;border:2px solid var(--edge);background:var(--surface2);color:var(--ink);
@@ -208,6 +212,9 @@ h1{font-family:Chewy,Nunito,cursive;font-weight:400;font-size:25px;margin:0;line
 /* The profile button is a fourth thing in a header that was already full, so
    the chrome shrinks earlier than it used to and the title gives way first. */
 h1{overflow:hidden;text-overflow:ellipsis}
+.lvpick.modes{max-height:none;margin-bottom:8px}
+.lvpick.modes .lvchip{min-width:0;font-size:12px;padding:5px 10px}
+.chip b.low{color:var(--barn)}
 @media (max-width:439px){
   h1{font-size:20px}
   .logo{width:28px;height:28px}
@@ -569,16 +576,17 @@ function decodeLevel(k){
   for(i=0;i<L.s.length;i++) sol.push(parseInt(L.s[i],16));
   return {n:L.n,reg:reg,sol:sol};
 }
-function unlocked(k){return k===0||!!prog.star[k-1]}
-var NEWS="lv"+LEVELS.length;
+function unlocked(k){return k===0||clearedAny(k-1)}
+function newsId(){return "lv"+LEVELS.length+"c"+CHALS.length}
 function newsCard(){
-  if(prog.news===NEWS) return;
+  if(prog.news===newsId()) return;
   var played=prog.star&&Object.keys(prog.star).length>0;
   if(!played||!$("#overlay").hidden) return;
-  prog.news=NEWS;save();
-  var top=LEVELS[LEVELS.length-1].n;
-  modal('<h2>New levels</h2><p>The ladder is longer: '+LEVELS.length+
-    ' levels now, up to '+top+'x'+top+'. Your progress is where you left it.</p>'+
+  prog.news=newsId();save();
+  modal('<h2>Three new ways to play</h2><p>Every level can now be played with '+
+    '<b>no marks</b>, on <b>one life</b>, or <b>against the clock</b>. Each one keeps its own '+
+    'scores and stars, and the harder the rules the more the points are worth. '+
+    'There are new badges to go with them on your profile.</p>'+
     '<div class="acts"><button class="btn" data-act="close">Later</button>'+
     '<button class="btn primary" data-act="levels">Show me</button></div>');
 }
@@ -598,54 +606,69 @@ function scoreFor(secs,size,strikes,hintsUsed){
 var DB=null,UID=null,shared={},pending=null;
 function cleanIni(v){return (v||"").toUpperCase().replace(/[^A-Z0-9]/g,"").slice(0,3)}
 var KEEP=5;
-function scoresFor(k){
-  var v=shared[k];
+// Every challenge has its own board, so a level's scores are only ever read
+// for one mode at a time: the one being played, or the one being looked at.
+function rkey(k,c){return c?c+":"+k:""+k}
+function scoresFor(k,c){
+  c=bkey(c===undefined?chal:c);
+  var v=(boards[c]||{})[k];
   if(v&&v.length!==undefined) return v.slice(0,KEEP);
   if(v) return [v];
-  var b=prog.rec&&prog.rec[k];
+  var b=prog.rec&&prog.rec[rkey(k,c)];
   return b?[b]:[];
 }
-function recordFor(k){var a=scoresFor(k);return a.length?a[0]:null}
-function makesBoard(k,sc){
-  var a=scoresFor(k);
+function recordFor(k,c){var a=scoresFor(k,c);return a.length?a[0]:null}
+function makesBoard(k,sc,c){
+  var a=scoresFor(k,c);
   return a.length<KEEP||sc>a[a.length-1].sc;
 }
 function saveRecord(k,rec){
-  prog.rec=prog.rec||{};prog.rec[k]=rec;prog.ini=rec.ini;save();
+  var c=bkey(chal);
+  prog.rec=prog.rec||{};prog.rec[rkey(k,c)]=rec;prog.ini=rec.ini;save();
   if(onWeb()){
     fetch("/api/records",{method:"POST",headers:{"content-type":"application/json"},
-      body:JSON.stringify({game:GAME,level:k,ini:rec.ini,sc:rec.sc,t:rec.t})})
+      body:JSON.stringify({game:GAME,mode:c,level:k,ini:rec.ini,sc:rec.sc,t:Math.max(1,rec.t)})})
       .then(function(r){return r.ok?r.json():null})
-      .then(function(j){if(j&&j.records){LIVE=true;shared=j.records}})
+      .then(function(j){if(j&&j.records){LIVE=true;boards[c]=j.records}})
       .catch(function(){});
   }
 }
-var GAME=KEY.split(".")[0],LIVE=false,boardSeq=0,boardLv=null;
+var GAME=KEY.split(".")[0],LIVE=false,boardSeq=0,boardLv=null,boards={};
 function onWeb(){return location.protocol==="http:"||location.protocol==="https:"}
-function pullBoard(cb){
+function bkey(c){return c||""}
+function pullBoard(c,cb){
   if(!onWeb()) return;
-  fetch("/api/records?game="+encodeURIComponent(GAME),{cache:"no-store"})
+  c=bkey(c);
+  fetch("/api/records?game="+encodeURIComponent(GAME)+"&mode="+encodeURIComponent(c),{cache:"no-store"})
     .then(function(r){return r.ok?r.json():null})
     .then(function(j){
-      if(j&&j.records){LIVE=true;shared=j.records;if(cb)cb()}
+      if(j&&j.records){LIVE=true;boards[c]=j.records;if(cb)cb()}
     }).catch(function(){});
 }
-function startLeaderboard(){pullBoard()}
+function startLeaderboard(){pullBoard(chal)}
 function openBoard(){
+  boardChal=chal;
   var s=++boardSeq;
   leaderboard();
-  pullBoard(function(){if(s===boardSeq&&$("#boardCard"))leaderboard()});
+  pullBoard(boardChal,function(){if(s===boardSeq&&$("#boardCard"))leaderboard()});
+}
+function showBoard(c){
+  boardChal=bkey(c);
+  var s=++boardSeq;
+  boardLv=null;
+  leaderboard();
+  pullBoard(boardChal,function(){if(s===boardSeq&&$("#boardCard"))leaderboard()});
 }
 function playedLevels(){
   var o=[],k;
-  for(k=0;k<LEVELS.length;k++) if(scoresFor(k).length) o.push(k);
+  for(k=0;k<LEVELS.length;k++) if(scoresFor(k,boardChal).length) o.push(k);
   return o;
 }
 function overallTotals(){
-  var tot={},k,i,a;
+  var tot={},k,a,who;
   for(k=0;k<LEVELS.length;k++){
-    a=scoresFor(k);
-    if(a.length) tot[a[0].ini||"---"]=(tot[a[0].ini||"---"]||0)+a[0].sc;
+    a=scoresFor(k,boardChal);
+    if(a.length){who=a[0].name||a[0].ini||"---";tot[who]=(tot[who]||0)+a[0].sc}
   }
   return tot;
 }
@@ -659,15 +682,15 @@ function leaderboard(){
   var have=playedLevels(),i;
   if(have.length&&have.indexOf(boardLv)<0)
     boardLv=have.indexOf(level)>=0?level:have[0];
-  var h='<h2 id="boardCard">Records</h2>';
+  var h='<h2 id="boardCard">Records</h2>'+chalChips(boardChal,"bmode");
   if(!have.length){
-    h+='<p>No scores yet. Finish a level and the first one is yours.</p>';
+    h+='<p>Nothing on this board yet. Finish a level in this mode and the first one is yours.</p>';
   }else{
     h+='<div class="lvpick">';
     for(i=0;i<have.length;i++)
       h+='<button class="lvchip'+(have[i]===boardLv?" on":"")+'" data-act="board" data-bl="'+have[i]+'">'+(have[i]+1)+'</button>';
     h+='</div><div class="lvhead">Level '+(boardLv+1)+'</div><div class="recs">';
-    var rows=scoresFor(boardLv);
+    var rows=scoresFor(boardLv,boardChal);
     for(i=0;i<rows.length;i++)
       h+=recRow(i+1,rows[i]);
     h+='</div>';
@@ -746,8 +769,8 @@ function paint(){
   }
   $("#undo").disabled=undoStack.length===0||won||lost;
   paintLives();
-  $("#best").textContent=mode==="level"?(prog.best[level]?fmt(prog.best[level]):"—"):(stats.best[n]?fmt(stats.best[n]):"—");
-  $("#time").textContent=fmt(elapsed);
+  $("#best").textContent=bestTime()?fmt(bestTime()):"—";
+  paintTime();
 }
 function layout(){
   var stage=document.querySelector(".stage");
@@ -766,8 +789,8 @@ function heart(on){
     (on?"var(--barn)":"none")+'" stroke="var(--barn)" stroke-width="2.4" stroke-opacity="'+(on?"1":".38")+'" stroke-linejoin="round"/></svg>';
 }
 function paintLives(){
-  var h="",i;
-  for(i=0;i<3;i++) h+=heart(i<3-strikes);
+  var h="",i,L=lives();
+  for(i=0;i<L;i++) h+=heart(i<L-strikes);
   $("#hearts").innerHTML=h;
 }
 function clashReason(a,b){
@@ -782,9 +805,9 @@ function strike(i,foe){
   buzz([30,60,30]);
   cellEls[i].classList.add("shake");
   setTimeout(function(){if(cellEls[i])cellEls[i].classList.remove("shake")},700);
-  toast((foe>=0?clashReason(i,foe):"Trix cannot go there")+" &mdash; strike "+strikes+" of 3");
+  toast((foe>=0?clashReason(i,foe):"Trix cannot go there")+" &mdash; strike "+strikes+" of "+lives());
   paint();save();
-  if(strikes>=3){
+  if(strikes>=lives()){
     lost=true;runTimer(false);save();paint();
     setTimeout(loseGame,900);
   }
@@ -792,7 +815,10 @@ function strike(i,foe){
 function loseGame(){
   if(mode==="level"){
     modal('<h2>Bad Dog! You failed!</h2>'+
-      '<p>Three placements that could never be right. The board is the same every time, so you keep what you worked out.</p>'+
+      '<p>'+(chal==="rush"?"The clock ran out."
+        :lives()===1?"One placement that could never be right, and that was the one life."
+        :"Three placements that could never be right.")+
+      ' The board is the same every time, so you keep what you worked out.</p>'+
       '<div class="acts"><button class="btn primary" data-act="restart">Try again</button>'+
       '<button class="btn" data-act="levels">Levels</button></div>');
     return;
@@ -813,7 +839,16 @@ function toast(msg){
 function buzz(p){try{if(navigator.vibrate)navigator.vibrate(p)}catch(e){}}
 
 /* ---------------- timer ---------------- */
-function tick(){elapsed++;$("#time").textContent=fmt(elapsed);if(elapsed%5===0)save()}
+function tick(){
+  elapsed++;
+  paintTime();
+  if(chal==="rush"&&mode==="level"&&elapsed>=budget()){
+    lost=true;runTimer(false);save();paint();
+    setTimeout(loseGame,400);
+    return;
+  }
+  if(elapsed%5===0)save();
+}
 function runTimer(on){
   if(timer){clearInterval(timer);timer=null}
   if(on&&!won&&!lost) timer=setInterval(tick,1000);
@@ -834,10 +869,17 @@ function win(){
   stats.solved=(stats.solved||0)+1;
   if(mode==="level"){
     var st=starsFor(elapsed,n,hints>0);
-    if(!prog.star[level]||prog.star[level]<st) prog.star[level]=st;
-    if(!prog.best[level]||elapsed<prog.best[level]) prog.best[level]=elapsed;
-    if(strikes===0){prog.clean=prog.clean||{};prog.clean[level]=1}
-    var sc=scoreFor(elapsed,n,strikes,hints);
+    if(chal){
+      var mp=modeProg(chal);
+      if(!mp[level]||mp[level]<st) mp[level]=st;
+      prog.mbest=prog.mbest||{};prog.mbest[chal]=prog.mbest[chal]||{};
+      if(!prog.mbest[chal][level]||elapsed<prog.mbest[chal][level]) prog.mbest[chal][level]=elapsed;
+    }else{
+      if(!prog.star[level]||prog.star[level]<st) prog.star[level]=st;
+      if(!prog.best[level]||elapsed<prog.best[level]) prog.best[level]=elapsed;
+    }
+    noteRun();
+    var sc=Math.round(scoreFor(elapsed,n,strikes,hints)*chalOf(chal).m);
     var held=recordFor(level);
     var isRec=makesBoard(level,sc);
     pending=isRec?{k:level,ini:(ME?ME.ini:prog.ini)||"",sc:sc,t:elapsed}:null;
@@ -846,7 +888,7 @@ function win(){
     var last=level>=LEVELS.length-1;
     setTimeout(function(){
       modal('<h2>Level '+(level+1)+' done</h2><div class="bigtime">'+fmt(elapsed)+'</div>'+
-        '<div class="sub">'+starRow(st)+' &middot; '+(3-strikes)+' of 3 lives left'+'</div>'+
+        '<div class="sub">'+starRow(st)+' &middot; '+(chal?chalOf(chal).n:(lives()-strikes)+' of '+lives()+' lives left')+'</div>'+
         '<div class="score">'+sc+' points</div>'+
         '<div class="sub">'+(!held||sc>held.sc?"new record":(isRec?"on the board":(held?"best "+held.ini+" "+held.sc:"")))+'</div>'+
         (isRec&&ME?'<p class="ok">Saved to '+esc(ME.name)+'</p>':'')+
@@ -900,20 +942,27 @@ function undo(){
   marks[m[0]]=m[1];
   paint();save();
 }
-function startLevel(k){
+function startLevel(k,c){
   if(k<0||k>=LEVELS.length) return;
   var L=decodeLevel(k);
+  if(c!==undefined) chal=chalOf(c).k;
+  if(!boards[bkey(chal)]) pullBoard(chal);
   mode="level";level=k;
   n=L.n;reg=L.reg;sol=L.sol;
   colorOf=pickTerrains(n,reg);
   marks=new Array(n*n).fill(0);undoStack=[];elapsed=0;hints=0;won=false;lost=false;strikes=0;cursor=-1;
   hideModal();buildBoard();layout();paint();paintChrome();runTimer(true);save();
-  $("#foot").innerHTML="Level "+(k+1)+", "+n+"&times;"+n+". Tap to rule a square out, hold or double-tap to place <b>Trix</b>.";
+  $("#foot").innerHTML="Level "+(k+1)+", "+n+"&times;"+n+". "+
+    (noMarks()?"Tap to place <b>Trix</b>. No marks in this one."
+      :"Tap to rule a square out, hold or double-tap to place <b>Trix</b>.")+
+    (chal==="rush"?" "+fmt(budget())+" on the clock.":chal==="onelife"?" One life.":"");
 }
-function levelPicker(){
-  var h='<h2>Levels</h2><div class="levels">',k;
+function levelPicker(keep){
+  if(!keep) pickChal=chal;
+  var h='<h2>Levels</h2>'+chalChips(pickChal,"pmode")+
+    '<p class="note">'+chalOf(pickChal).s+'</p><div class="levels">',k;
   for(k=0;k<LEVELS.length;k++){
-    var st=prog.star[k]||0,ok=unlocked(k);
+    var st=doneIn(k,pickChal),ok=unlocked(k);
     h+='<button class="lv'+(st?' done':'')+'"'+(ok?'':' disabled')+' data-lv="'+k+'">'+(k+1)+
        '<i>'+(st?starRow(st):LEVELS[k].n+"\u00d7"+LEVELS[k].n)+'</i></button>';
   }
@@ -963,7 +1012,7 @@ function pickTerrains(n,reg){
 }
 function newPuzzle(size){
   hideModal();
-  mode="free";level=-1;
+  mode="free";level=-1;chal="";
   n=size||n;
   boardEl.innerHTML='';
   $("#foot").textContent="Laying out a fresh board…";
@@ -976,6 +1025,68 @@ function newPuzzle(size){
     $("#foot").innerHTML="Tap to rule a square out, hold or double-tap to place <b>Trix</b>. Drag to mark a run.";
     paintSizes();
   },30);
+}
+
+/* ---------------- challenge modes ---------------- */
+// The same levels under different rules. `chal` is the one being played,
+// `pickChal` the one the level screen is showing, `boardChal` the one the
+// Records screen is showing; all three are keys from this table.
+var CHALS=[
+  {k:"",n:"Normal",sn:"Normal",s:"Three lives, and you can rule squares out as you go.",m:1},
+  {k:"nomark",n:"No marks",sn:"No marks",s:"No X marks at all. Nowhere to keep your thinking but your head.",m:1.6},
+  {k:"onelife",n:"One life",sn:"One life",s:"One wrong Trix and the round is over.",m:1.5},
+  {k:"rush",n:"Against the clock",sn:"Clock",s:"The three-star time is the whole budget, counting down.",m:1.4}
+];
+var chal="",pickChal="",boardChal="";
+function chalOf(k){var i;for(i=0;i<CHALS.length;i++) if(CHALS[i].k===(k||"")) return CHALS[i];return CHALS[0]}
+function lives(){return chal==="onelife"?1:3}
+function budget(){return par(n)}
+function noMarks(){return chal==="nomark"}
+function modeProg(c){var m=prog.mode||(prog.mode={});return m[c]||(m[c]={})}
+function doneIn(k,c){return c?(modeProg(c)[k]||0):(prog.star[k]||0)}
+function clearedAny(k){
+  if(prog.star[k]) return true;
+  var m=prog.mode||{},c;
+  for(c in m) if(m[c][k]) return true;
+  return false;
+}
+function chalChips(sel,act){
+  var h='<div class="lvpick modes">',i,c;
+  for(i=0;i<CHALS.length;i++){
+    c=CHALS[i];
+    h+='<button class="lvchip'+(c.k===sel?" on":"")+'" data-act="'+act+'" data-ck="'+c.k+'">'+c.n+'</button>';
+  }
+  return h+'</div>';
+}
+// Everything a finished level says about how it was played. The badges read
+// these; nothing else does.
+function noteRun(){
+  prog.clean=prog.clean||{};prog.fast=prog.fast||{};prog.nohint=prog.nohint||{};
+  prog.days=prog.days||{};prog.flags=prog.flags||{};
+  if(strikes===0) prog.clean[level]=1;
+  if(hints===0) prog.nohint[level]=1;
+  if(elapsed<=Math.round(par(n)/2)) prog.fast[level]=1;
+  if(lives()>1&&strikes===lives()-1) prog.flags.comeback=1;
+  var d=new Date();
+  prog.days[d.getFullYear()+"-"+(d.getMonth()+1)+"-"+d.getDate()]=1;
+  if(d.getHours()<6) prog.flags.night=1;
+}
+function bestTime(){
+  if(mode!=="level") return stats.best[n];
+  if(chal) return (prog.mbest&&prog.mbest[chal]&&prog.mbest[chal][level])||0;
+  return prog.best[level];
+}
+function paintTime(){
+  var e=$("#time");
+  if(!e) return;
+  if(chal==="rush"&&mode==="level"){
+    var left=Math.max(0,budget()-elapsed);
+    e.textContent=fmt(left);
+    e.classList.toggle("low",left<=10);
+  }else{
+    e.textContent=fmt(elapsed);
+    e.classList.remove("low");
+  }
 }
 
 /* ---------------- accounts ---------------- */
@@ -1030,27 +1141,103 @@ function startAccount(){
 }
 
 /* ---------------- badges ---------------- */
+// Everything here is worked out from the progress the game already keeps plus
+// the account's own totals, so badges need no storage of their own. A locked
+// one carries how far along it is, which is most of what makes them worth
+// chasing.
+function countKeys(o){var n=0,k;for(k in (o||{}))n++;return n}
+function starCount(min){var n=0,k,m=prog.star||{};for(k in m) if(m[k]>=min)n++;return n}
+function modeMap(c){return (prog.mode||{})[c]||{}}
+function modeCount(c){return countKeys(modeMap(c))}
+function biggestIn(c){
+  var m=c?modeMap(c):(prog.star||{}),k,top=0;
+  for(k in m) if(LEVELS[k]&&LEVELS[k].n>top) top=LEVELS[k].n;
+  return top;
+}
+function sizesDone(){
+  var m=prog.star||{},seen={},k,n=0;
+  for(k in m) if(LEVELS[k]&&!seen[LEVELS[k].n]){seen[LEVELS[k].n]=1;n++}
+  return n;
+}
+function SIZECOUNT(){
+  var seen={},k,n=0;
+  for(k=0;k<LEVELS.length;k++) if(!seen[LEVELS[k].n]){seen[LEVELS[k].n]=1;n++}
+  return n;
+}
+function triples(){
+  var a=modeMap("nomark"),b=modeMap("onelife"),c=modeMap("rush"),k,n=0;
+  for(k in a) if(b[k]&&c[k]) n++;
+  return n;
+}
+function tier(icon,name,what,have,need){
+  return {i:icon,n:name,d:what,at:Math.min(have,need),of:need,got:have>=need};
+}
 function badges(){
-  var st=prog.star||{},cl=prog.clean||{},done=0,three=0,big=0,k;
-  for(k in st){done++;if(st[k]>=3)three++;if(LEVELS[k]&&LEVELS[k].n>=10)big++}
-  var clean=Object.keys(cl).length,firsts=(MESTATS&&MESTATS.firsts)||0;
+  var s=MESTATS||{total:0,firsts:0},done=countKeys(prog.star),all=LEVELS.length;
+  var clean=countKeys(prog.clean),fast=countKeys(prog.fast),nohint=countKeys(prog.nohint);
+  var days=countKeys(prog.days),fl=prog.flags||{};
+  var nm=modeCount("nomark"),ol=modeCount("onelife"),ru=modeCount("rush"),tri=triples();
   return [
-    {i:"\ud83c\udf31",n:"First one",d:"Finish a level",got:done>=1},
-    {i:"\ud83d\udd1f",n:"Ten down",d:"Finish ten levels",got:done>=10},
-    {i:"\ud83c\udfc3",n:"Regular",d:"Finish forty levels",got:done>=40},
-    {i:"\ud83c\udfc1",n:"The lot",d:"Finish every level",got:done>=LEVELS.length},
-    {i:"\u2b50",n:"Three stars",d:"Three stars on a level",got:three>=1},
-    {i:"\u2728",n:"Star collector",d:"Three stars on twenty-five levels",got:three>=25},
-    {i:"\ud83d\udee1",n:"No mistakes",d:"Finish a level without losing a life",got:clean>=1},
-    {i:"\ud83e\udde0",n:"Steady hand",d:"Ten levels without losing a life",got:clean>=10},
-    {i:"\ud83d\udd0d",n:"Big board",d:"Finish a 10x10 or bigger",got:big>=1},
-    {i:"\ud83c\udfc6",n:"Top score",d:"Hold the best score on a level",got:firsts>=1},
-    {i:"\ud83d\udc51",n:"Board hog",d:"Best score on five levels",got:firsts>=5}
+    tier("\ud83c\udf31","First one","Finish a level",done,1),
+    tier("\ud83d\udd1f","Ten down","Finish ten levels",done,10),
+    tier("\ud83c\udfc3","Regular","Finish forty levels",done,40),
+    tier("\ud83c\udfc1","The lot","Finish every level",done,all),
+    tier("\u2b50","Three stars","Three stars on a level",starCount(3),1),
+    tier("\u2728","Star collector","Three stars on twenty-five levels",starCount(3),25),
+    tier("\ud83c\udf1f","Constellation","Three stars on sixty levels",starCount(3),60),
+    tier("\ud83d\udc51","Perfect ladder","Three stars on every level",starCount(3),all),
+    tier("\ud83d\udee1","No mistakes","Finish a level without losing a life",clean,1),
+    tier("\ud83e\udde0","Steady hand","Ten levels without losing a life",clean,10),
+    tier("\ud83e\uddca","Ice cold","Forty levels without losing a life",clean,40),
+    tier("\ud83d\udd26","Unaided","Ten levels with no hints",nohint,10),
+    tier("\ud83d\uddfa","Own devices","Forty levels with no hints",nohint,40),
+    tier("\u26a1","Quick","Finish a level in half the par time",fast,1),
+    tier("\ud83d\ude80","Blur","Ten levels in half the par time",fast,10),
+    tier("\ud83c\udf2a","Turbo","Thirty levels in half the par time",fast,30),
+    tier("\ud83d\udd0d","Big board","Finish a 10x10",biggestIn("")>=10?1:0,1),
+    tier("\ud83e\uddf1","Bigger board","Finish an 11x11",biggestIn("")>=11?1:0,1),
+    tier("\ud83d\udcd0","Every size","Finish a level at every size",sizesDone(),SIZECOUNT()),
+    tier("\ud83d\ude48","In the dark","Finish a level with no marks",nm,1),
+    tier("\ud83e\udde9","Memory work","Ten levels with no marks",nm,10),
+    tier("\ud83d\udd76","All in the head","Forty levels with no marks",nm,40),
+    tier("\ud83d\udc94","One shot","Finish a level on one life",ol,1),
+    tier("\ud83e\udd38","Tightrope","Ten levels on one life",ol,10),
+    tier("\ud83e\ude78","Nerves of steel","Forty levels on one life",ol,40),
+    tier("\u23f1","Beat the clock","Finish a level against the clock",ru,1),
+    tier("\u23f3","Clockwork","Ten levels against the clock",ru,10),
+    tier("\ud83d\udd25","Time lord","Forty levels against the clock",ru,40),
+    tier("\ud83c\udfaf","Triple","One level finished in all three challenges",tri,1),
+    tier("\ud83c\udf96","Ten triples","Ten levels finished in all three challenges",tri,10),
+    tier("\ud83d\udc09","Big and blind","A 10x10 or bigger with no marks",biggestIn("nomark")>=10?1:0,1),
+    tier("\u2604","Against the big clock","An 11x11 against the clock",biggestIn("rush")>=11?1:0,1),
+    tier("\ud83c\udfc6","Top score","Hold the best score on a level",s.firsts||0,1),
+    tier("\ud83e\udd47","Board hog","Best score on five levels",s.firsts||0,5),
+    tier("\ud83d\udc8e","Untouchable","Best score on fifteen levels",s.firsts||0,15),
+    tier("\ud83d\udcb0","Ten thousand","Ten thousand points all told",s.total||0,10000),
+    tier("\ud83c\udfe6","Fifty thousand","Fifty thousand points all told",s.total||0,50000),
+    tier("\ud83d\uddff","Two hundred thousand","Two hundred thousand points all told",s.total||0,200000),
+    tier("\ud83c\udf19","Night owl","Finish a level before six in the morning",fl.night?1:0,1),
+    tier("\ud83d\udd01","Comeback","Win a level after losing two lives",fl.comeback?1:0,1),
+    tier("\ud83d\udcc5","Three days","Play on three different days",days,3),
+    tier("\ud83d\uddd3","A week","Play on seven different days",days,7),
+    tier("\ud83e\udded","A month","Play on thirty different days",days,30)
   ];
 }
 
 /* ---------------- cards ---------------- */
 function statCell(v,label){return '<div class="stat"><b>'+v+'</b><span>'+label+'</span></div>'}
+var badgeSel=-1;
+// One line per way to play, so a profile shows at a glance where somebody has
+// been spending their time.
+function modeStrip(){
+  var h='<div class="tot">',i,c,done;
+  for(i=0;i<CHALS.length;i++){
+    c=CHALS[i];
+    done=c.k?countKeys(modeMap(c.k)):countKeys(prog.star);
+    h+='<span>'+esc(c.sn||c.n)+' <b>'+done+'</b></span>';
+  }
+  return h+'</div>';
+}
 function accountCard(msg,quiet){
   if(!ME) return signCard("in","");
   var s=MESTATS||{total:0,firsts:0};
@@ -1058,16 +1245,24 @@ function accountCard(msg,quiet){
   for(k in st){done++;stars+=st[k]}
   var list=badges(),got=0,i;
   for(i=0;i<list.length;i++) if(list[i].got) got++;
+  var sel=list[badgeSel];
   var h='<h2 id="profCard">'+esc(ME.name)+'</h2>'+
     '<div class="prof">'+avaHTML(ME.avatar,ME.ini,"big")+
       '<div class="pmeta"><b>@'+esc(ME.handle)+'</b>'+(ME.bio?'<p>'+esc(ME.bio)+'</p>':'')+'</div></div>'+
     '<div class="stats">'+statCell(done,"levels")+statCell(stars,"stars")+
       statCell(s.total||0,"points")+statCell(s.firsts||0,"top scores")+'</div>'+
+    modeStrip()+
     (msg?'<p class="ok">'+esc(msg)+'</p>':'')+
     '<div class="lvhead">Badges '+got+' of '+list.length+'</div><div class="badges">';
   for(i=0;i<list.length;i++)
-    h+='<span class="badge'+(list[i].got?" on":"")+'" title="'+esc(list[i].d)+'"><b>'+list[i].i+'</b>'+esc(list[i].n)+'</span>';
-  h+='</div><div class="acts"><button class="btn" data-act="editprof">Edit profile</button>'+
+    h+='<button class="badge'+(list[i].got?" on":"")+(i===badgeSel?" sel":"")+
+       '" data-act="badge" data-bd="'+i+'" title="'+esc(list[i].d)+'"><b>'+list[i].i+'</b>'+esc(list[i].n)+
+       (!list[i].got&&list[i].of>1?'<u>'+list[i].at+'/'+list[i].of+'</u>':'')+'</button>';
+  h+='</div>'+
+     (sel?'<p class="note">'+esc(sel.n)+' — '+esc(sel.d)+
+          (sel.got?'. Earned.':'. '+sel.at+' of '+sel.of+'.')+'</p>':
+          '<p class="note">Tap a badge to see what it takes.</p>')+
+     '<div class="acts"><button class="btn" data-act="editprof">Edit profile</button>'+
      '<button class="btn" data-act="records">Records</button>'+
      '<button class="btn primary" data-act="close">Back</button></div>'+
      '<p class="note"><button class="linkbtn" data-act="signout">Sign out</button></p>';
@@ -1196,7 +1391,9 @@ function signOut(){
 
 /* ---------------- progress sync ---------------- */
 function progBody(){
-  return {star:prog.star||{},best:prog.best||{},rec:prog.rec||{},clean:prog.clean||{},ini:prog.ini||""};
+  return {star:prog.star||{},best:prog.best||{},rec:prog.rec||{},clean:prog.clean||{},
+    mode:prog.mode||{},mbest:prog.mbest||{},fast:prog.fast||{},nohint:prog.nohint||{},
+    days:prog.days||{},flags:prog.flags||{},ini:prog.ini||""};
 }
 function mergeProg(r){
   if(!r) return false;
@@ -1206,6 +1403,21 @@ function mergeProg(r){
   for(k in (r.best||{})) if(!prog.best[k]||r.best[k]<prog.best[k]){prog.best[k]=r.best[k];ch=true}
   for(k in (r.rec||{})) if(r.rec[k]&&(!prog.rec[k]||r.rec[k].sc>prog.rec[k].sc)){prog.rec[k]=r.rec[k];ch=true}
   for(k in (r.clean||{})) if(!prog.clean[k]){prog.clean[k]=1;ch=true}
+  prog.fast=prog.fast||{};prog.nohint=prog.nohint||{};prog.days=prog.days||{};
+  prog.flags=prog.flags||{};prog.mode=prog.mode||{};prog.mbest=prog.mbest||{};
+  for(k in (r.fast||{})) if(!prog.fast[k]){prog.fast[k]=1;ch=true}
+  for(k in (r.nohint||{})) if(!prog.nohint[k]){prog.nohint[k]=1;ch=true}
+  for(k in (r.days||{})) if(!prog.days[k]){prog.days[k]=1;ch=true}
+  for(k in (r.flags||{})) if(!prog.flags[k]){prog.flags[k]=r.flags[k];ch=true}
+  var c,lv;
+  for(c in (r.mode||{})){
+    prog.mode[c]=prog.mode[c]||{};
+    for(lv in r.mode[c]) if(!prog.mode[c][lv]||r.mode[c][lv]>prog.mode[c][lv]){prog.mode[c][lv]=r.mode[c][lv];ch=true}
+  }
+  for(c in (r.mbest||{})){
+    prog.mbest[c]=prog.mbest[c]||{};
+    for(lv in r.mbest[c]) if(!prog.mbest[c][lv]||r.mbest[c][lv]<prog.mbest[c][lv]){prog.mbest[c][lv]=r.mbest[c][lv];ch=true}
+  }
   return ch;
 }
 function pullProgress(){
@@ -1234,7 +1446,7 @@ function save(){
     localStorage.setItem(KEY,JSON.stringify({
       n:n,reg:reg,sol:sol,marks:marks,colorOf:colorOf,elapsed:elapsed,
       hints:hints,won:won,lost:lost,strikes:strikes,stats:stats,
-      mode:mode,level:level,prog:prog
+      mode:mode,level:level,chal:chal,prog:prog
     }));
   }catch(e){}
   pushProgress();
@@ -1252,7 +1464,7 @@ function modal(html,wide){var c=$("#card");c.className="card"+(wide?" wide":"");
 function hideModal(){$("#overlay").hidden=true}
 $("#overlay").addEventListener("click",function(e){
   var lb=e.target.closest("[data-lv]");
-  if(lb&&!lb.disabled){startLevel(lb.dataset.lv|0);return}
+  if(lb&&!lb.disabled){startLevel(lb.dataset.lv|0,pickChal);return}
   var b=e.target.closest("[data-act]");if(!b)return;
   var a=b.dataset.act;
   if(a==="new") newPuzzle();
@@ -1260,6 +1472,8 @@ $("#overlay").addEventListener("click",function(e){
   else if(a==="levels") levelPicker();
   else if(a==="records") openBoard();
   else if(a==="board"){boardLv=b.dataset.bl|0;leaderboard();return}
+  else if(a==="bmode"){showBoard(b.dataset.ck);return}
+  else if(a==="pmode"){pickChal=chalOf(b.dataset.ck).k;levelPicker(true);return}
   else if(a==="saveini"){
     var el=$("#iniIn"),v=cleanIni(el?el.value:"");
     if(v.length<1){if(el)el.focus();return}
@@ -1285,6 +1499,7 @@ $("#overlay").addEventListener("click",function(e){
       .catch(function(e){passCard(e.message,"")});
     return;
   }
+  else if(a==="badge"){badgeSel=(+b.dataset.bd===badgeSel)?-1:+b.dataset.bd;accountCard("",true);return}
   else if(a==="signout"){signOut();return}
   else if(a==="close") hideModal();
 });
@@ -1338,7 +1553,7 @@ boardEl.addEventListener("pointerdown",function(e){
   cursor=i;
   var p={i:i,x:e.clientX,y:e.clientY,id:e.pointerId,moved:false,fired:false,from:marks[i],pushed:false,last:i};
   press=p;
-  if(marks[i]===0){setMark(i,1);p.pushed=true;afterMove();}
+  if(!noMarks()&&marks[i]===0){setMark(i,1);p.pushed=true;afterMove();}
   else paint();
   p.timer=setTimeout(function(){
     if(press!==p||p.moved||p.fired) return;
@@ -1353,7 +1568,7 @@ boardEl.addEventListener("pointermove",function(e){
   if(!press.moved&&(Math.abs(e.clientX-press.x)>8||Math.abs(e.clientY-press.y)>8)){
     press.moved=true;clearTimeout(press.timer);
   }
-  if(!press.moved||press.from!==0||press.fired) return;
+  if(!press.moved||press.from!==0||press.fired||noMarks()) return;
   var el=document.elementFromPoint(e.clientX,e.clientY),i=cellFrom(el);
   if(i<0||i===press.last) return;
   press.last=i;
@@ -1363,6 +1578,12 @@ function endPress(){
   if(!press) return;
   var p=press;press=null;clearTimeout(p.timer);
   if(p.fired||p.moved){lastTap.i=-1;return}
+  if(noMarks()){
+    lastTap.i=-1;
+    if(marks[p.i]===2){setMark(p.i,0);afterMove()}
+    else putCow(p.i);
+    return;
+  }
   var now=Date.now();
   if(lastTap.i===p.i&&now-lastTap.t<330){
     var was=lastTap.was;lastTap.i=-1;
@@ -1385,7 +1606,7 @@ boardEl.addEventListener("keydown",function(e){
   else if(k==="ArrowRight") c=Math.min(n-1,c+1);
   else moved=false;
   if(moved){cursor=idx(r,c);paint();e.preventDefault();return}
-  if(k===" "){setMark(cursor,marks[cursor]?0:1);afterMove();e.preventDefault()}
+  if(k===" "){if(!noMarks()){setMark(cursor,marks[cursor]?0:1);afterMove()}e.preventDefault()}
   else if(k==="Enter"){putCow(cursor);e.preventDefault()}
 });
 
@@ -1401,6 +1622,7 @@ function start(){
     prog=s.prog||{star:{},best:{}};
     if(!prog.star)prog.star={};if(!prog.best)prog.best={};if(!prog.rec)prog.rec={};
     mode=s.mode==="level"?"level":"free";level=typeof s.level==="number"?s.level:-1;
+    chal=chalOf(s.chal).k;
     if(mode==="level"&&(level<0||level>=LEVELS.length)){mode="free";level=-1}
     buildBoard();paintSizes();paintChrome();layout();paint();
     if(lost) setTimeout(loseGame,300);

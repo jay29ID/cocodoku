@@ -18,6 +18,15 @@ const GAMES: Record<string, string> = {
   cowdoku: "Cowdoku",
 };
 
+// The challenge modes play the same levels under different rules, so each one
+// keeps its own board. "" is the ordinary game.
+const MODES: Record<string, string> = {
+  "": "Normal",
+  nomark: "No marks",
+  onelife: "One life",
+  rush: "Against the clock",
+};
+
 const KEEP = 5; // rows shown per level
 const CAP = 200; // rows kept per level
 const YEAR = 365 * 24 * 3600;
@@ -45,6 +54,7 @@ create table if not exists sessions(
 );
 create table if not exists scores(
   game text not null,
+  mode text not null default '',
   level integer not null,
   who text not null,           -- 'u<id>' for an account, 'a<initials>' otherwise
   uid integer references users(id) on delete set null,
@@ -52,9 +62,9 @@ create table if not exists scores(
   sc integer not null,
   t integer not null,
   at integer not null,
-  primary key(game, level, who)
+  primary key(game, mode, level, who)
 );
-create index if not exists scores_rank on scores(game, level, sc desc, t asc);
+create index if not exists scores_rank on scores(game, mode, level, sc desc, t asc);
 create table if not exists progress(
   uid integer not null references users(id) on delete cascade,
   game text not null,
@@ -64,14 +74,34 @@ create table if not exists progress(
 );
 `);
 
+// Scores predate the challenge modes, and mode is part of the key, so a table
+// without it is rebuilt rather than altered: SQLite cannot widen a primary key.
+const scoreCols = db.query<{ name: string }, []>("pragma table_info(scores)").all();
+if (scoreCols.length && !scoreCols.some((c) => c.name === "mode")) {
+  db.exec(`
+    alter table scores rename to scores_old;
+    create table scores(
+      game text not null, mode text not null default '', level integer not null,
+      who text not null, uid integer references users(id) on delete set null,
+      ini text not null, sc integer not null, t integer not null, at integer not null,
+      primary key(game, mode, level, who)
+    );
+    insert into scores(game,mode,level,who,uid,ini,sc,t,at)
+      select game,'',level,who,uid,ini,sc,t,at from scores_old;
+    drop table scores_old;
+    create index if not exists scores_rank on scores(game, mode, level, sc desc, t asc);
+  `);
+  console.log("scores table rebuilt with a mode column");
+}
+
 // The leaderboard used to be a JSON file. Move it in once, then keep the file
 // as .imported so a redeploy cannot replay it over newer scores.
 const OLDRECS = DATA + "/records.json";
 try {
   const raw: any = await Bun.file(OLDRECS).json();
   const ins = db.prepare(
-    "insert into scores(game,level,who,uid,ini,sc,t,at) values(?,?,?,null,?,?,?,?) " +
-      "on conflict(game,level,who) do update set sc=excluded.sc,t=excluded.t,at=excluded.at where excluded.sc>sc",
+    "insert into scores(game,mode,level,who,uid,ini,sc,t,at) values(?,'',?,?,null,?,?,?,?) " +
+      "on conflict(game,mode,level,who) do update set sc=excluded.sc,t=excluded.t,at=excluded.at where excluded.sc>sc",
   );
   let n = 0;
   db.transaction(() => {
@@ -203,41 +233,47 @@ function publicUser(u: User) {
 // What the profile card shows: everything derived from that player's scores.
 function statsFor(uid: number) {
   const rows = db
-    .query<{ game: string; levels: number; total: number; best: number }, [number]>(
-      "select game, count(*) levels, sum(sc) total, max(sc) best from scores where uid=? group by game",
+    .query<{ game: string; mode: string; levels: number; total: number; best: number }, [number]>(
+      "select game, mode, count(*) levels, sum(sc) total, max(sc) best from scores where uid=? group by game, mode",
     )
     .all(uid);
   const firsts = db
     .query<{ n: number }, [number]>(
-      "select count(*) n from scores s where s.uid=? and s.sc=(select max(sc) from scores x where x.game=s.game and x.level=s.level)",
+      "select count(*) n from scores s where s.uid=? and s.sc=" +
+        "(select max(sc) from scores x where x.game=s.game and x.mode=s.mode and x.level=s.level)",
     )
     .get(uid);
   const by: Record<string, { levels: number; total: number; best: number }> = {};
+  const modes: Record<string, number> = {};
   let levels = 0, total = 0;
   for (const r of rows) {
-    by[r.game] = { levels: r.levels, total: r.total, best: r.best };
+    const g = by[r.game] || (by[r.game] = { levels: 0, total: 0, best: 0 });
+    g.levels += r.levels;
+    g.total += r.total;
+    g.best = Math.max(g.best, r.best);
+    modes[r.mode] = (modes[r.mode] || 0) + r.levels;
     levels += r.levels;
     total += r.total;
   }
-  return { levels, total, firsts: firsts?.n || 0, by };
+  return { levels, total, firsts: firsts?.n || 0, by, modes };
 }
 
 /* ---------------- scores ---------------- */
 
 type Row = { level: number; who: string; uid: number | null; ini: string; sc: number; t: number; at: number; name?: string; avatar?: string | null };
 
-const qBoard = db.query<Row, [string]>(`
+const qBoard = db.query<Row, [string, string]>(`
   select level, who, uid, ini, sc, t, at, name, avatar from (
     select s.*, u.name, u.avatar,
            row_number() over (partition by s.level order by s.sc desc, s.t asc, s.at asc) rn
     from scores s left join users u on u.id = s.uid
-    where s.game = ?
+    where s.game = ? and s.mode = ?
   ) where rn <= ${KEEP}
   order by level, sc desc`);
 
-function board(game: string) {
+function board(game: string, mode: string) {
   const out: Record<string, any[]> = {};
-  for (const r of qBoard.all(game)) {
+  for (const r of qBoard.all(game, mode)) {
     (out[String(r.level)] || (out[String(r.level)] = [])).push({
       ini: r.ini, sc: r.sc, t: r.t, at: r.at,
       uid: r.uid || undefined, name: r.name || undefined, av: r.avatar || undefined,
@@ -487,14 +523,18 @@ Bun.serve({
     if (path === "/api/records") {
       if (req.method === "GET") {
         const g = url.searchParams.get("game") || "";
+        const m = url.searchParams.get("mode") || "";
         if (!(g in GAMES)) return json({ error: "unknown game" }, 400);
-        return json({ game: g, records: board(g) });
+        if (!(m in MODES)) return json({ error: "unknown mode" }, 400);
+        return json({ game: g, mode: m, records: board(g, m) });
       }
       if (req.method === "POST") {
         const b = await body(req);
         if (!b) return json({ error: "bad json" }, 400);
         const g = String(b?.game ?? "");
         if (!(g in GAMES)) return json({ error: "unknown game" }, 400);
+        const m = String(b?.mode ?? "");
+        if (!(m in MODES)) return json({ error: "unknown mode" }, 400);
         const lv = Number(b?.level);
         if (!Number.isInteger(lv) || lv < 0 || lv > 999) return json({ error: "bad level" }, 400);
         const sc = Math.round(Number(b?.sc));
@@ -507,21 +547,21 @@ Bun.serve({
         const who = u ? "u" + u.id : "a" + ini;
         if (tooMany("sc:" + (u ? "u" + u.id : ip()), 120, 600e3)) return json({ error: "slow down" }, 429);
         db.run(
-          "insert into scores(game,level,who,uid,ini,sc,t,at) values(?,?,?,?,?,?,?,?) " +
-            "on conflict(game,level,who) do update set sc=excluded.sc,t=excluded.t,at=excluded.at " +
+          "insert into scores(game,mode,level,who,uid,ini,sc,t,at) values(?,?,?,?,?,?,?,?,?) " +
+            "on conflict(game,mode,level,who) do update set sc=excluded.sc,t=excluded.t,at=excluded.at " +
             "where excluded.sc>scores.sc",
-          [g, lv, who, u ? u.id : null, ini, sc, t, Date.now()],
+          [g, m, lv, who, u ? u.id : null, ini, sc, t, Date.now()],
         );
-        const over = db.query<{ n: number }, [string, number]>(
-          "select count(*) n from scores where game=? and level=?",
-        ).get(g, lv);
+        const over = db.query<{ n: number }, [string, string, number]>(
+          "select count(*) n from scores where game=? and mode=? and level=?",
+        ).get(g, m, lv);
         if ((over?.n || 0) > CAP)
           db.run(
-            "delete from scores where game=? and level=? and who in " +
-              "(select who from scores where game=? and level=? order by sc asc, t desc limit ?)",
-            [g, lv, g, lv, (over!.n - CAP)],
+            "delete from scores where game=? and mode=? and level=? and who in " +
+              "(select who from scores where game=? and mode=? and level=? order by sc asc, t desc limit ?)",
+            [g, m, lv, g, m, lv, (over!.n - CAP)],
           );
-        return json({ game: g, records: board(g) });
+        return json({ game: g, mode: m, records: board(g, m) });
       }
       return json({ error: "method not allowed" }, 405);
     }
